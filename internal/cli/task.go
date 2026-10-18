@@ -6,6 +6,7 @@ import (
 	"github.com/mik3dev/fal-cli/internal/config"
 	"github.com/mik3dev/fal-cli/internal/ledger"
 	"github.com/mik3dev/fal-cli/internal/output"
+	"github.com/mik3dev/fal-cli/internal/schema"
 	"github.com/mik3dev/fal-cli/internal/task"
 	"github.com/spf13/cobra"
 )
@@ -14,7 +15,7 @@ const defaultTaskListLimit = 20
 
 func newTaskCmd(deps Deps) *cobra.Command {
 	task := &cobra.Command{Use: "task", Short: "Inspect locally recorded requests", RunE: groupRunE}
-	task.AddCommand(newTaskListCmd(deps), newTaskGetCmd(deps), newTaskCancelCmd(deps))
+	task.AddCommand(newTaskListCmd(deps), newTaskGetCmd(deps), newTaskCancelCmd(deps), newTaskWaitCmd(deps))
 	return task
 }
 
@@ -120,6 +121,45 @@ func newTaskCancelCmd(deps Deps) *cobra.Command {
 			return output.Success(deps.Stdout, map[string]any{"requestId": args[0], "model": endpoint, "status": status})
 		},
 	}
+	addModelFlag(cmd)
+	return cmd
+}
+
+func newTaskWaitCmd(deps Deps) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "wait <requestId>",
+		Short: "Wait for a request, then download its results",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			timeout, _ := cmd.Flags().GetDuration("timeout")
+			if timeout < 0 {
+				return usageErr("--timeout must be positive, got %s", timeout)
+			}
+			c, paths, cfg, err := newAPIClientCfg(cmd, deps)
+			if err != nil {
+				return err
+			}
+			model, _ := cmd.Flags().GetString("model")
+			endpoint, err := resolveEndpoint(paths, args[0], model)
+			if err != nil {
+				return err
+			}
+			known, _ := ledger.Find(paths.Ledger, args[0])
+			a := finishArgs{id: args[0], endpoint: endpoint, outDir: resolveOutDir(cmd, cfg, known.OutDir), timeout: timeout, createdAt: known.CreatedAt}
+			if a.createdAt.IsZero() {
+				a.createdAt = deps.Now()
+			}
+			if a.timeout == 0 {
+				a.timeout = defaultTimeout
+				if doc, err := schema.Fetch(cmd.Context(), c, paths.Cache, endpoint, false, deps.Now()); err == nil {
+					a.timeout = timeoutFor(doc.Category)
+				}
+			}
+			_, _ = fmt.Fprintln(warnWriter(cmd, deps), "note: "+expiryWarning)
+			return finish(cmd, deps, c, paths, a)
+		},
+	}
+	addFinishFlags(cmd)
 	addModelFlag(cmd)
 	return cmd
 }

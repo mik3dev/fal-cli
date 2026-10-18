@@ -84,7 +84,7 @@ func runModel(cmd *cobra.Command, deps Deps, endpoint string) error {
 	if dry, _ := flags.GetBool("dry-run"); dry {
 		return emitDryRun(cmd, deps, c, paths, endpoint, input, warn)
 	}
-	input, uploaded, err := upload.Resolve(cmd.Context(), c, input, fileExists)
+	input, uploaded, err := upload.Resolve(cmd.Context(), c, input, upload.IsFileKey, fileExists)
 	if err != nil {
 		return err
 	}

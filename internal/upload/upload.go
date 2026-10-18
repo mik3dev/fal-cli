@@ -98,10 +98,10 @@ func scrubURL(msg, u string) string {
 	return msg
 }
 
-// Resolve returns a copy of input where every local file named by a *_url /
-// *_urls key (string or []any of strings) is uploaded and replaced by its
+// Resolve returns a copy of input where every local file under a key that
+// isFile accepts (string or []any of strings) is uploaded and replaced by its
 // URL. URLs (http, https, data) and missing paths are left untouched.
-func Resolve(ctx context.Context, c *api.Client, input map[string]any, exists func(string) bool) (map[string]any, []string, error) {
+func Resolve(ctx context.Context, c *api.Client, input map[string]any, isFile func(string) bool, exists func(string) bool) (map[string]any, []string, error) {
 	out := make(map[string]any, len(input))
 	var uploaded []string
 	up := func(v any) (any, error) {
@@ -117,7 +117,7 @@ func Resolve(ctx context.Context, c *api.Client, input map[string]any, exists fu
 		return u, nil
 	}
 	for k, v := range input {
-		if !IsFileKey(k) {
+		if !isFile(k) {
 			out[k] = v
 			continue
 		}

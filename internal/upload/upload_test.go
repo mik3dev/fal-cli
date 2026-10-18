@@ -151,7 +151,7 @@ func TestResolveUploadsOnlyFileKeys(t *testing.T) {
 	c, s := setup(t)
 	png := writeFile(t, "a.png", "P")
 	in := map[string]any{"prompt": "README.md", "image_url": png, "seed": 3}
-	out, uploaded, err := upload.Resolve(context.Background(), c, in, fileExists)
+	out, uploaded, err := upload.Resolve(context.Background(), c, in, upload.IsFileKey, fileExists)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -162,7 +162,7 @@ func TestResolveUploadsOnlyFileKeys(t *testing.T) {
 		t.Fatalf("uploaded = %v", uploaded)
 	}
 	// Missing local path is left as is for the API to reject.
-	out, uploaded, err = upload.Resolve(context.Background(), c, map[string]any{"image_url": "./nope.png"}, fileExists)
+	out, uploaded, err = upload.Resolve(context.Background(), c, map[string]any{"image_url": "./nope.png"}, upload.IsFileKey, fileExists)
 	if err != nil || out["image_url"] != "./nope.png" || len(uploaded) != 0 {
 		t.Fatalf("out=%v uploaded=%v err=%v", out, uploaded, err)
 	}
@@ -172,7 +172,7 @@ func TestResolveArrayItems(t *testing.T) {
 	c, s := setup(t)
 	png := writeFile(t, "b.png", "B")
 	in := map[string]any{"image_urls": []any{png, "https://x/y.png"}}
-	out, uploaded, err := upload.Resolve(context.Background(), c, in, fileExists)
+	out, uploaded, err := upload.Resolve(context.Background(), c, in, upload.IsFileKey, fileExists)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -185,7 +185,7 @@ func TestResolveArrayItems(t *testing.T) {
 func TestResolveDataURIPassThrough(t *testing.T) {
 	c, s := setup(t)
 	in := map[string]any{"image_url": "data:image/png;base64,AAAA", "video_url": "http://x/v.mp4"}
-	out, uploaded, err := upload.Resolve(context.Background(), c, in, func(string) bool { return true })
+	out, uploaded, err := upload.Resolve(context.Background(), c, in, upload.IsFileKey, func(string) bool { return true })
 	if err != nil || out["image_url"] != in["image_url"] || out["video_url"] != in["video_url"] || len(uploaded) != 0 || len(s.puts) != 0 {
 		t.Fatalf("out=%v uploaded=%v err=%v", out, uploaded, err)
 	}
@@ -196,7 +196,7 @@ func TestResolveDoesNotMutateInput(t *testing.T) {
 	png := writeFile(t, "c.png", "C")
 	arr := []any{png}
 	in := map[string]any{"image_url": png, "image_urls": arr}
-	if _, _, err := upload.Resolve(context.Background(), c, in, fileExists); err != nil {
+	if _, _, err := upload.Resolve(context.Background(), c, in, upload.IsFileKey, fileExists); err != nil {
 		t.Fatal(err)
 	}
 	if in["image_url"] != png || arr[0] != png {

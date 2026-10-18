@@ -396,3 +396,15 @@ func TestQueuePathsUseAppID(t *testing.T) {
 		t.Errorf("full endpoint path used:\n%s", joined)
 	}
 }
+
+// A 422 on the result is the server rejecting the input: validation (exit 2), not task_failed.
+func TestGetResult422IsValidationWithProblems(t *testing.T) {
+	q := &queue{result: code(422, `{"detail":[{"loc":["body","output_format"],"msg":"Input should be 'jpeg' or 'png'","type":"literal_error","ctx":{"expected":"'jpeg' or 'png'"}}]}`)}
+	c, _ := setup(t, q)
+	_, err := task.GetResult(context.Background(), c, ep, "req-1")
+	oe := asOut(t, err)
+	probs, _ := oe.Details["problems"].([]api.Problem)
+	if oe.Code != output.CodeValidation || oe.ExitCode() != 2 || len(probs) != 1 || probs[0].Field != "output_format" || oe.Details["requestId"] != "req-1" || !strings.Contains(oe.Message, "rejected") {
+		t.Fatalf("err = %+v", oe)
+	}
+}

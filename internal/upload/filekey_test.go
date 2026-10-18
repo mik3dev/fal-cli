@@ -132,3 +132,19 @@ func TestResolveUsesPredicate(t *testing.T) {
 		t.Fatalf("name-only: out=%v uploaded=%v err=%v", out, uploaded, err)
 	}
 }
+
+// Live sweep (stage 6): fashn tryon model_image/garment_image and bria image/image_source are
+// string fields with an https example and no ui.field. The example is the signal, not the description.
+func TestSchemaFileKeyByExampleURL(t *testing.T) {
+	sch := map[string]any{"properties": map[string]any{
+		"model_image": map[string]any{"type": "string", "description": "URL or base64 of the model image", "examples": []any{"https://storage.googleapis.com/falserverless/example_inputs/model.png"}},
+		"prompt":      map[string]any{"type": "string", "examples": []any{"a red fox"}},
+		"link":        map[string]any{"type": "string", "description": "URL of the image", "examples": []any{}},
+		"refs":        map[string]any{"type": "array", "items": map[string]any{"type": "string", "examples": []any{"http://x/a.png"}}},
+	}}
+	for k, want := range map[string]bool{"model_image": true, "prompt": false, "link": false, "refs": true} {
+		if got := upload.SchemaFileKey(sch, k); got != want {
+			t.Errorf("%q = %v, want %v", k, got, want)
+		}
+	}
+}

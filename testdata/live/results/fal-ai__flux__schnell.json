@@ -1,0 +1,18 @@
+{
+ "images": [
+  {
+   "url": "https://v3b.fal.media/files/b/0aaed657/5OsHHMHd9ET3127a1z0yd.jpg",
+   "width": 512,
+   "height": 512,
+   "content_type": "image/jpeg"
+  }
+ ],
+ "timings": {
+  "inference": 0.49665788596030325
+ },
+ "seed": 589230349,
+ "has_nsfw_concepts": [
+  false
+ ],
+ "prompt": "a red fox, watercolor"
+}

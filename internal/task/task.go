@@ -211,6 +211,13 @@ func GetResult(ctx context.Context, c *api.Client, endpoint, id string) (json.Ra
 		if ae.Status == http.StatusNotFound || ae.Status == http.StatusGone {
 			return nil, &output.Error{Code: output.CodeTaskFailed, Message: fmt.Sprintf("request %s: result expired or not found", id), Details: details}
 		}
+		if ae.Status == http.StatusUnprocessableEntity {
+			// The server rejected the input after queueing: a validation error, like a local one.
+			oe := ae.AsOutput()
+			oe.Message = fmt.Sprintf("request %s: input rejected by %s (%d problem(s)); fix the fields", id, endpoint, len(ae.Problems))
+			oe.Details["requestId"] = id
+			return nil, oe
+		}
 		return nil, &output.Error{Code: output.CodeTaskFailed, Message: fmt.Sprintf("request %s failed: %s", id, ae.Message), Details: details}
 	}
 	return raw, nil

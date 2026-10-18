@@ -234,3 +234,25 @@ func countFiles(v any) int {
 	}
 	return 0
 }
+
+// TestExtractRealResults runs the extractor over payloads captured from paid requests (stage 6).
+func TestExtractRealResults(t *testing.T) {
+	entries, err := os.ReadDir("../../testdata/live/results")
+	if err != nil || len(entries) < 4 {
+		t.Fatalf("results fixtures: %v (%d)", err, len(entries))
+	}
+	for _, e := range entries {
+		raw, err := os.ReadFile("../../testdata/live/results/" + e.Name())
+		if err != nil {
+			t.Fatal(err)
+		}
+		m := result.Extract(raw)
+		if len(m) == 0 || !strings.Contains(m[0].URL, "fal.media") {
+			t.Errorf("%s: media = %+v", e.Name(), m)
+		}
+		ids := result.IDs("r", raw, m)
+		if len(ids) < 2 {
+			t.Errorf("%s: ids = %v", e.Name(), ids)
+		}
+	}
+}

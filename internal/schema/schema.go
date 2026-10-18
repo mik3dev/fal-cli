@@ -71,6 +71,10 @@ func parse(endpoint string, raw json.RawMessage) (Doc, error) {
 		return Doc{}, err
 	}
 	if d.Input, err = resolved(doc, in); err != nil {
+		if strings.Contains(err.Error(), "unresolvable $ref") {
+			// Websocket and realtime endpoints publish a queue document without an input schema.
+			return Doc{}, &output.Error{Code: output.CodeValidation, Message: fmt.Sprintf("endpoint %s has no queue input schema (websocket or realtime endpoints are not supported by run)", endpoint)}
+		}
 		return Doc{}, err
 	}
 	if d.Output, err = resolved(doc, out); err != nil {

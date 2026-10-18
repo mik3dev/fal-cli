@@ -475,3 +475,19 @@ func TestRunDownloadFailureKeepsLedgerNote(t *testing.T) {
 		t.Fatalf("ledger = %+v", le)
 	}
 }
+
+// A file field holding a non-URL value that is not a local file is sent as text, with a warning.
+func TestRunWarnsWhenFileValueIsNeitherURLNorFile(t *testing.T) {
+	f := newFal(t)
+	code, m, stderr, _ := runFal(t, f, filepath.Join(t.TempDir(), "h"), "run", "fal-ai/kling-video/v2.5-turbo/pro/image-to-video", "-p", "prompt=a cat turns its head", "-p", "image_url=./gone.png", "--dry-run")
+	if code != 0 || m["pendingUploads"].([]any) == nil || len(m["pendingUploads"].([]any)) != 0 {
+		t.Fatalf("code=%d m=%v", code, m)
+	}
+	if !strings.Contains(stderr, "warning: image_url: ./gone.png is not a URL and no such local file exists") {
+		t.Fatalf("stderr = %q", stderr)
+	}
+	code, _, stderr, _ = runFal(t, f, filepath.Join(t.TempDir(), "h"), "run", "fal-ai/kling-video/v2.5-turbo/pro/image-to-video", "-p", "prompt=a cat turns its head", "-p", "image_url=https://x/a.png", "--dry-run")
+	if code != 0 || strings.Contains(stderr, "no such local file") {
+		t.Fatalf("url must not warn: %q", stderr)
+	}
+}

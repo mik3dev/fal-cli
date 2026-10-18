@@ -145,6 +145,7 @@ func prepareInput(cmd *cobra.Command, deps Deps, doc schema.Doc, endpoint string
 		return preparedInput{}, err
 	}
 	p := preparedInput{input: schema.Coerce(sch, raw), isFile: func(k string) bool { return upload.SchemaFileKey(sch, k) }, preset: ref.name}
+	warnMissingFiles(p.input, p.isFile, warn)
 	problems, err := schema.Validate(sch, p.input)
 	if err != nil {
 		_, _ = fmt.Fprintf(warn, "warning: cannot validate the input (%v); sending without validation\n", err)
@@ -250,7 +251,7 @@ func pendingUploads(input map[string]any, isFile func(string) bool) []pendingUpl
 			items = []any{v}
 		}
 		for _, it := range items {
-			if s, ok := it.(string); ok && !strings.HasPrefix(s, "http://") && !strings.HasPrefix(s, "https://") && !strings.HasPrefix(s, "data:") && fileExists(s) {
+			if s, ok := it.(string); ok && !isURL(s) && fileExists(s) {
 				out = append(out, pendingUpload{path: s, key: k})
 			}
 		}
@@ -404,4 +405,32 @@ func withRequestID(err error, id string, extra map[string]any) error {
 	}
 	details["requestId"] = id
 	return &output.Error{Code: oe.Code, Message: oe.Message, Details: details}
+}
+
+// warnMissingFiles tells the caller when a file field holds a value that is neither a URL
+// nor an existing local file: it is sent as text and the server will reject it.
+func warnMissingFiles(input map[string]any, isFile func(string) bool, warn io.Writer) {
+	keys := make([]string, 0, len(input))
+	for k := range input {
+		if isFile(k) {
+			keys = append(keys, k)
+		}
+	}
+	sort.Strings(keys)
+	for _, k := range keys {
+		items, ok := input[k].([]any)
+		if !ok {
+			items = []any{input[k]}
+		}
+		for _, it := range items {
+			s, ok := it.(string)
+			if ok && !isURL(s) && !fileExists(s) {
+				_, _ = fmt.Fprintf(warn, "warning: %s: %s is not a URL and no such local file exists; it will be sent as text\n", k, s)
+			}
+		}
+	}
+}
+
+func isURL(s string) bool {
+	return strings.HasPrefix(s, "http://") || strings.HasPrefix(s, "https://") || strings.HasPrefix(s, "data:")
 }

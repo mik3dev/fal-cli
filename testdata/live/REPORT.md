@@ -77,11 +77,11 @@ Schemas: 47 (errores 0) · Precios: 47 · Billing: fal.ai error 403: This API ke
 
 ## Formas de File/Image/Video/Audio
 
+- AudioSetting: bitrate,channel,format,sample_rate
+- File: content_type,file_name,file_size,url
 - MusicAudioReference: audio_url,end_ms,start_ms,strength
 - Image: content_type,height,url,width
 - AudioSetting25: bitrate,format,sample_rate
-- AudioSetting: bitrate,channel,format,sample_rate
-- File: content_type,file_name,file_size,url
 
 ## Errores de pricing
 

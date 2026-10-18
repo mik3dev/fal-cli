@@ -6,37 +6,54 @@ import (
 	"strings"
 )
 
+// maxNodes caps the expanded tree so a document whose $refs fan out
+// exponentially ("billion laughs") fails fast instead of exhausting memory.
+const maxNodes = 200_000
+
+// ErrTooLarge is returned when expansion exceeds maxNodes.
+var ErrTooLarge = fmt.Errorf("schema too large: more than %d nodes after $ref expansion", maxNodes)
+
 // Resolve returns a deep copy of node with every local `$ref` expanded.
 // Segments are percent-decoded (never trimmed). A ref that is already being
 // expanded (cycle) is left as {"$ref": ...}; external refs are kept as is.
 // Neither doc nor node is mutated.
 func Resolve(doc map[string]any, node any) (any, error) {
-	return resolve(doc, node, map[string]bool{})
+	r := &resolver{doc: doc, active: map[string]bool{}}
+	return r.resolve(node)
 }
 
-func resolve(doc map[string]any, node any, active map[string]bool) (any, error) {
+type resolver struct {
+	doc    map[string]any
+	active map[string]bool
+	nodes  int
+}
+
+func (r *resolver) resolve(node any) (any, error) {
+	if r.nodes++; r.nodes > maxNodes {
+		return nil, ErrTooLarge
+	}
 	switch n := node.(type) {
 	case map[string]any:
 		if ref, ok := n["$ref"].(string); ok {
-			return resolveRef(doc, n, ref, active)
+			return r.resolveRef(n, ref)
 		}
 		out := make(map[string]any, len(n))
 		for k, v := range n {
-			r, err := resolve(doc, v, active)
+			rv, err := r.resolve(v)
 			if err != nil {
 				return nil, err
 			}
-			out[k] = r
+			out[k] = rv
 		}
 		return out, nil
 	case []any:
 		out := make([]any, len(n))
 		for i, v := range n {
-			r, err := resolve(doc, v, active)
+			rv, err := r.resolve(v)
 			if err != nil {
 				return nil, err
 			}
-			out[i] = r
+			out[i] = rv
 		}
 		return out, nil
 	default:
@@ -44,7 +61,8 @@ func resolve(doc map[string]any, node any, active map[string]bool) (any, error) 
 	}
 }
 
-func resolveRef(doc, n map[string]any, ref string, active map[string]bool) (any, error) {
+func (r *resolver) resolveRef(n map[string]any, ref string) (any, error) {
+	doc, active := r.doc, r.active
 	if !strings.HasPrefix(ref, "#/") || active[ref] {
 		return map[string]any{"$ref": ref}, nil
 	}
@@ -54,7 +72,7 @@ func resolveRef(doc, n map[string]any, ref string, active map[string]bool) (any,
 	}
 	active[ref] = true
 	defer delete(active, ref)
-	res, err := resolve(doc, target, active)
+	res, err := r.resolve(target)
 	if err != nil {
 		return nil, err
 	}
@@ -71,11 +89,11 @@ func resolveRef(doc, n map[string]any, ref string, active map[string]bool) (any,
 		if k == "$ref" {
 			continue
 		}
-		r, err := resolve(doc, v, active)
+		rv, err := r.resolve(v)
 		if err != nil {
 			return nil, err
 		}
-		out[k] = r
+		out[k] = rv
 	}
 	return out, nil
 }

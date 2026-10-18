@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -231,5 +232,22 @@ func TestGuessLiterals(t *testing.T) {
 	}
 	if in["n"] != "3" {
 		t.Fatal("input mutated")
+	}
+}
+
+func TestResolveRejectsExponentialExpansion(t *testing.T) {
+	// "billion laughs": each level references the previous one 10 times.
+	schemas := map[string]any{"l0": map[string]any{"type": "string"}}
+	for i := 1; i <= 9; i++ {
+		props := map[string]any{}
+		for j := 0; j < 10; j++ {
+			props[fmt.Sprintf("p%d", j)] = map[string]any{"$ref": fmt.Sprintf("#/components/schemas/l%d", i-1)}
+		}
+		schemas[fmt.Sprintf("l%d", i)] = map[string]any{"type": "object", "properties": props}
+	}
+	doc := map[string]any{"components": map[string]any{"schemas": schemas}}
+	_, err := schema.Resolve(doc, map[string]any{"$ref": "#/components/schemas/l9"})
+	if err == nil || !strings.Contains(err.Error(), "too large") {
+		t.Fatalf("err = %v", err)
 	}
 }

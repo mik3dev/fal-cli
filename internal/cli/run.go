@@ -98,6 +98,7 @@ func runModel(cmd *cobra.Command, deps Deps, endpoint string) error {
 		return err
 	}
 	if noWait, _ := flags.GetBool("no-wait"); noWait {
+		_, _ = fmt.Fprintf(warn, "note: %s with: fal-cli task wait %s\n", expiryWarning, id)
 		return output.Success(deps.Stdout, map[string]any{
 			"requestId": id, "model": endpoint, "state": task.LedgerSubmitted,
 			"ids": map[string]any{"request_id": id}, "uploaded": nonNil(uploaded),

@@ -140,7 +140,7 @@ func TestSubmit5xxAfterSendIsUncertainWhenHistoryEmpty(t *testing.T) {
 		t.Fatalf("ledger = %+v", l)
 	}
 	joined := strings.Join(q.calls, "\n")
-	if !strings.Contains(joined, "GET /v1/models/requests/by-endpoint?endpoint_id=fal-ai%2Fflux%2Fschnell&limit=5&start=2026-10-18T12%3A00%3A00Z") {
+	if !strings.Contains(joined, "GET /v1/models/requests/by-endpoint?endpoint_id=fal-ai%2Fflux%2Fschnell&limit=5&start=2026-10-18T11%3A59%3A30Z") {
 		t.Fatalf("history not queried: %s", joined)
 	}
 }
@@ -332,5 +332,31 @@ func TestCancelAlreadyCompleted(t *testing.T) {
 	c2, _ := setup(t, q2)
 	if _, err := task.Cancel(context.Background(), c2, ep, "req-1"); asOut(t, err).Code != output.CodeTaskFailed {
 		t.Fatalf("404 err = %v", err)
+	}
+}
+
+func TestRecoverUncertainToleratesClockSkew(t *testing.T) {
+	q := &queue{submit: []func(http.ResponseWriter){code(500, "boom")}, history: `{"items":[{"request_id":"skew-1","endpoint_id":"fal-ai/flux/schnell","sent_at":"2026-10-18T11:59:40Z"}]}`}
+	c, lp := setup(t, q)
+	id, err := task.Submit(context.Background(), c, lp, ep, map[string]any{"prompt": "cat"}, "", t0, nil)
+	if err != nil || id != "skew-1" {
+		t.Fatalf("id=%q err=%v", id, err)
+	}
+	if joined := strings.Join(q.calls, "\n"); !strings.Contains(joined, "start=2026-10-18T11%3A59%3A30Z") {
+		t.Fatalf("history start not skewed: %s", joined)
+	}
+}
+
+func TestGetResultBadJSONIsAPIError(t *testing.T) {
+	q := &queue{result: ok(`{not json`)}
+	c, _ := setup(t, q)
+	_, err := task.GetResult(context.Background(), c, ep, "req-1")
+	var ae *api.Error
+	if !errors.As(err, &ae) || ae.Status != 200 {
+		t.Fatalf("err = %#v", err)
+	}
+	var oe *output.Error
+	if errors.As(err, &oe) {
+		t.Fatalf("must not be an output error: %+v", oe)
 	}
 }

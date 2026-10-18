@@ -116,7 +116,9 @@ func newTaskCancelCmd(deps Deps) *cobra.Command {
 				return err
 			}
 			if status == "CANCELLATION_REQUESTED" {
-				_ = ledger.Append(paths.Ledger, ledger.Entry{RequestID: args[0], Endpoint: endpoint, State: task.LedgerCancelled, CreatedAt: deps.Now()})
+				if err := ledger.Append(paths.Ledger, ledger.Entry{RequestID: args[0], Endpoint: endpoint, State: task.LedgerCancelled, CreatedAt: deps.Now()}); err != nil {
+					_, _ = fmt.Fprintf(warnWriter(cmd, deps), "warning: could not record request %s in the ledger: %v\n", args[0], err)
+				}
 			}
 			return output.Success(deps.Stdout, map[string]any{"requestId": args[0], "model": endpoint, "status": status})
 		},

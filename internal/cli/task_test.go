@@ -93,3 +93,20 @@ func TestTaskCancelCommandUsesLedgerEndpoint(t *testing.T) {
 		t.Fatalf("ledger = %+v", e)
 	}
 }
+
+func TestTaskCancelLedgerWriteFailureWarns(t *testing.T) {
+	srv := fakeQueue(t, ``, ``, 202)
+	env := apiEnv(srv)
+	home := filepath.Join(t.TempDir(), "home")
+	if err := os.MkdirAll(filepath.Join(home, "tasks.jsonl"), 0o700); err != nil { // ledger path is a directory: unwritable
+		t.Fatal(err)
+	}
+	env["FAL_CLI_HOME"] = home
+	code, m, errw := run(t, env, "task", "cancel", "req-7", "--model", "fal-ai/x")
+	if code != 0 || m["status"] != "CANCELLATION_REQUESTED" {
+		t.Fatalf("code=%d m=%v stderr=%s", code, m, errw)
+	}
+	if !strings.Contains(errw.String(), "could not record request req-7") {
+		t.Fatalf("stderr = %q", errw.String())
+	}
+}

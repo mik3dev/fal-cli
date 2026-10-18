@@ -448,3 +448,11 @@ func TestRunPromptPathNeverUploaded(t *testing.T) {
 		t.Fatalf("code=%d m=%v submits=%v", code, m, f.submits)
 	}
 }
+
+func TestRunNoWaitWarnsExpiry(t *testing.T) {
+	f := newFal(t)
+	_, _, errw, _ := runFal(t, f, filepath.Join(t.TempDir(), "h"), "run", "fal-ai/flux/schnell", "-p", "prompt=fox", "--no-wait")
+	if !strings.Contains(errw, "expires") || !strings.Contains(errw, "task wait req-1") {
+		t.Fatalf("stderr = %q", errw)
+	}
+}

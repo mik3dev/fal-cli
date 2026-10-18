@@ -33,7 +33,11 @@ const (
 	LedgerCancelled = "cancelled"
 )
 
-const historyLimit = 5
+const (
+	historyLimit = 5
+	// skewTolerance absorbs a local clock running ahead of the platform.
+	skewTolerance = 30 * time.Second
+)
 
 // Status is one poll of a queued request.
 type Status struct {
@@ -61,16 +65,18 @@ func Submit(ctx context.Context, c *api.Client, ledgerPath, endpoint string, inp
 	_, err := c.Do(ctx, api.Request{Method: http.MethodPost, Path: "/" + endpoint, Body: input, Host: api.HostQueue}, &res)
 	switch {
 	case err == nil && res.RequestID != "":
-		return res.RequestID, record(ledgerPath, ledger.Entry{RequestID: res.RequestID, Endpoint: endpoint, State: LedgerSubmitted, OutDir: outDir, CreatedAt: now}, warn)
+		record(ledgerPath, ledger.Entry{RequestID: res.RequestID, Endpoint: endpoint, State: LedgerSubmitted, OutDir: outDir, CreatedAt: now}, warn)
+		return res.RequestID, nil
 	case err == nil:
 		err = &api.Error{Status: 200, Message: "submit response lacks request_id"}
 	case !sentOrServerError(err):
 		return "", err
 	}
 	if id, ok := recoverUncertain(ctx, c, endpoint, now); ok {
-		return id, record(ledgerPath, ledger.Entry{RequestID: id, Endpoint: endpoint, State: LedgerSubmitted, OutDir: outDir, CreatedAt: now, Note: "recovered from request history after: " + err.Error()}, warn)
+		record(ledgerPath, ledger.Entry{RequestID: id, Endpoint: endpoint, State: LedgerSubmitted, OutDir: outDir, CreatedAt: now, Note: "recovered from request history after: " + err.Error()}, warn)
+		return id, nil
 	}
-	_ = record(ledgerPath, ledger.Entry{Endpoint: endpoint, State: LedgerUnknown, OutDir: outDir, CreatedAt: now, Note: err.Error()}, warn)
+	record(ledgerPath, ledger.Entry{Endpoint: endpoint, State: LedgerUnknown, OutDir: outDir, CreatedAt: now, Note: err.Error()}, warn)
 	return "", &output.Error{
 		Code:    output.CodeSubmitUncertain,
 		Message: "request may have been created; check https://fal.ai/dashboard/requests before resubmitting",
@@ -88,18 +94,17 @@ func sentOrServerError(err error) bool {
 	return errors.As(err, &ae) && ae.Status >= 500
 }
 
-func record(path string, e ledger.Entry, warn io.Writer) error {
-	if err := ledger.Append(path, e); err != nil {
-		if warn != nil {
-			_, _ = fmt.Fprintf(warn, "warning: %v\n", err)
-		}
+// record appends a ledger line; a write failure only warns (the request is already in flight).
+func record(path string, e ledger.Entry, warn io.Writer) {
+	if err := ledger.Append(path, e); err != nil && warn != nil {
+		_, _ = fmt.Fprintf(warn, "warning: could not record request %s in the ledger: %v\n", e.RequestID, err)
 	}
-	return nil
 }
 
 // recoverUncertain adopts the single request of endpoint sent at or after
-// since, per the platform history. Query errors mean "not recovered".
+// since minus skewTolerance, per the platform history. Query errors mean "not recovered".
 func recoverUncertain(ctx context.Context, c *api.Client, endpoint string, since time.Time) (string, bool) {
+	since = since.Add(-skewTolerance)
 	var res struct {
 		Items []struct {
 			RequestID string `json:"request_id"`
@@ -173,11 +178,12 @@ func errorText(v any) string {
 }
 
 // GetResult fetches the final payload. Gone results and model failures are task_failed.
+// A 2xx whose body does not decode stays an api error (retryable).
 func GetResult(ctx context.Context, c *api.Client, endpoint, id string) (json.RawMessage, error) {
 	var raw json.RawMessage
 	if _, err := c.Do(ctx, api.Request{Method: http.MethodGet, Path: reqPath(endpoint, id, ""), Host: api.HostQueue}, &raw); err != nil {
 		var ae *api.Error
-		if !errors.As(err, &ae) || ae.Status == 401 || ae.Status == 403 || ae.Status == 429 {
+		if !errors.As(err, &ae) || ae.Status < 400 || ae.Status == 401 || ae.Status == 403 || ae.Status == 429 {
 			return nil, err
 		}
 		details := map[string]any{"requestId": id, "status": ae.Status}

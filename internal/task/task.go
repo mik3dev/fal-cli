@@ -214,7 +214,11 @@ func GetResult(ctx context.Context, c *api.Client, endpoint, id string) (json.Ra
 		if ae.Status == http.StatusUnprocessableEntity {
 			// The server rejected the input after queueing: a validation error, like a local one.
 			oe := ae.AsOutput()
-			oe.Message = fmt.Sprintf("request %s: input rejected by %s (%d problem(s)); fix the fields", id, endpoint, len(ae.Problems))
+			if len(ae.Problems) > 0 {
+				oe.Message = fmt.Sprintf("request %s: input rejected by %s (%d problem(s)); fix the fields", id, endpoint, len(ae.Problems))
+			} else {
+				oe.Message = fmt.Sprintf("request %s: input rejected by %s: %s", id, endpoint, ae.Message)
+			}
 			oe.Details["requestId"] = id
 			return nil, oe
 		}

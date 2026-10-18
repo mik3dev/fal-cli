@@ -53,7 +53,7 @@ Presets are named model + default params. `fal-cli preset list` shows them (`nam
 - `requestId`, `model`, `state` (`success`), `preset` (only with `@name`).
 - `files`: list of `{path, url, kind}`. `path` is the local file (`<model>_<requestId>_<n>.<ext>`, never overwritten).
 - `ids`: `request_id`, plus `seed` and `duration` when the result has them, and one URL per media key: `images_url` (one) or `images_urls` (several), `video_url`, `audio_url`, `vocals_url`... Use them to chain (see the references).
-- `result` (raw API response), `inferenceTime`, `uploaded` (URLs of the files uploaded for this run).
+- `result` (raw API response), `inferenceTime`, `uploaded` (local paths that were uploaded to fal storage for this run).
 
 Special cases:
 

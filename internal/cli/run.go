@@ -334,7 +334,7 @@ func finish(cmd *cobra.Command, deps Deps, c *api.Client, paths config.Paths, a 
 	raw, err := task.GetResult(cmd.Context(), c, a.endpoint, a.id)
 	if err != nil {
 		if state := finalState(err); state != "" {
-			recordFinal(paths, a, state, "", warn)
+			recordFinal(paths, a, state, resultNote(err), warn)
 		}
 		return withRequestID(err, a.id, nil)
 	}
@@ -366,7 +366,7 @@ func finalState(err error) string {
 	switch oe.Code {
 	case output.CodeTimeout:
 		return "timeout"
-	case output.CodeTaskFailed:
+	case output.CodeTaskFailed, output.CodeValidation: // validation: the server rejected the input after queueing
 		return task.LedgerFail
 	}
 	return ""
@@ -433,4 +433,13 @@ func warnMissingFiles(input map[string]any, isFile func(string) bool, warn io.Wr
 
 func isURL(s string) bool {
 	return strings.HasPrefix(s, "http://") || strings.HasPrefix(s, "https://") || strings.HasPrefix(s, "data:")
+}
+
+// resultNote is the ledger note for a result error: the server's reason when it rejected the input.
+func resultNote(err error) string {
+	var oe *output.Error
+	if errors.As(err, &oe) && oe.Code == output.CodeValidation {
+		return "input rejected by the server: " + oe.Message
+	}
+	return ""
 }

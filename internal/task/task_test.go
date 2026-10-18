@@ -408,3 +408,14 @@ func TestGetResult422IsValidationWithProblems(t *testing.T) {
 		t.Fatalf("err = %+v", oe)
 	}
 }
+
+// A 422 whose detail is a plain string keeps the server's reason in the message.
+func TestGetResult422StringDetailKeepsReason(t *testing.T) {
+	q := &queue{result: code(422, `{"detail":"Image too large"}`)}
+	c, _ := setup(t, q)
+	_, err := task.GetResult(context.Background(), c, ep, "req-1")
+	oe := asOut(t, err)
+	if oe.Code != output.CodeValidation || !strings.Contains(oe.Message, "Image too large") || strings.Contains(oe.Message, "0 problem") || oe.Details["requestId"] != "req-1" {
+		t.Fatalf("err = %+v", oe)
+	}
+}

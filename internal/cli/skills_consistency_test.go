@@ -3,6 +3,7 @@ package cli_test
 import (
 	"bytes"
 	"io/fs"
+	"os"
 	"strings"
 	"testing"
 
@@ -212,5 +213,15 @@ func TestSkillDocsStateVerifiedFacts(t *testing.T) {
 	}
 	if !strings.Contains(skill, "image-to-3d") {
 		t.Error("SKILL.md must list every hidden category")
+	}
+}
+
+func TestReadmeMentionsOnlyRealCommands(t *testing.T) {
+	b, err := os.ReadFile("../../README.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := checkSkillText(testRoot(), string(b)); len(got) != 0 {
+		t.Errorf("README.md: %v", got)
 	}
 }

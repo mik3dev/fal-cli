@@ -245,3 +245,20 @@ func TestReadmeLiveCommandsCarryTimeout(t *testing.T) {
 		t.Fatal("README has no live test command")
 	}
 }
+
+// `uploaded` lists the local paths that were uploaded (spec §4), not the resulting URLs.
+func TestSkillDescribesUploadedAsLocalPaths(t *testing.T) {
+	b, err := os.ReadFile("../../skills/fal-generate/SKILL.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	line := ""
+	for _, l := range strings.Split(string(b), "\n") {
+		if strings.Contains(l, "`uploaded`") {
+			line = l
+		}
+	}
+	if line == "" || strings.Contains(line, "URLs of the files uploaded") || !strings.Contains(line, "local paths") {
+		t.Fatalf("SKILL.md uploaded line = %q", line)
+	}
+}

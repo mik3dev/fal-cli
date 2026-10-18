@@ -2,6 +2,30 @@
  "prices": [
   {
    "currency": "USD",
+   "endpoint_id": "fal-ai/elevenlabs/tts/multilingual-v2",
+   "unit": "1000 characters",
+   "unit_price": 0.1
+  },
+  {
+   "currency": "USD",
+   "endpoint_id": "fal-ai/flux/schnell",
+   "unit": "megapixels",
+   "unit_price": 0.003
+  },
+  {
+   "currency": "USD",
+   "endpoint_id": "fal-ai/kling-video/v2.5-turbo/pro/image-to-video",
+   "unit": "seconds",
+   "unit_price": 0.07
+  },
+  {
+   "currency": "USD",
+   "endpoint_id": "fal-ai/kling-video/v2.5-turbo/pro/text-to-video",
+   "unit": "seconds",
+   "unit_price": 0.07
+  },
+  {
+   "currency": "USD",
    "endpoint_id": "alibaba/wan-3.0-prime/reference-to-video",
    "unit": "seconds",
    "unit_price": 0.05
@@ -62,12 +86,6 @@
   },
   {
    "currency": "USD",
-   "endpoint_id": "fal-ai/elevenlabs/tts/multilingual-v2",
-   "unit": "1000 characters",
-   "unit_price": 0.1
-  },
-  {
-   "currency": "USD",
    "endpoint_id": "fal-ai/elevenlabs/tts/turbo-v2.5",
    "unit": "1000 characters",
    "unit_price": 0.05
@@ -92,12 +110,6 @@
   },
   {
    "currency": "USD",
-   "endpoint_id": "fal-ai/flux/schnell",
-   "unit": "megapixels",
-   "unit_price": 0.003
-  },
-  {
-   "currency": "USD",
    "endpoint_id": "fal-ai/kling-video/lipsync/audio-to-video",
    "unit": "units",
    "unit_price": 0.014
@@ -110,15 +122,27 @@
   },
   {
    "currency": "USD",
-   "endpoint_id": "fal-ai/kling-video/v2.5-turbo/pro/image-to-video",
-   "unit": "seconds",
-   "unit_price": 0.07
+   "endpoint_id": "fal-ai/minimax-music/v2.6",
+   "unit": "audios",
+   "unit_price": 0.15
   },
   {
    "currency": "USD",
-   "endpoint_id": "fal-ai/kling-video/v2.5-turbo/pro/text-to-video",
+   "endpoint_id": "fal-ai/nano-banana-2/edit",
+   "unit": "images",
+   "unit_price": 0.08
+  },
+  {
+   "currency": "USD",
+   "endpoint_id": "fal-ai/nano-banana-pro",
+   "unit": "images",
+   "unit_price": 0.15
+  },
+  {
+   "currency": "USD",
+   "endpoint_id": "minimax/h3-max-turbo/text-to-video",
    "unit": "seconds",
-   "unit_price": 0.07
+   "unit_price": 0.01625
   },
   {
    "currency": "USD",
@@ -137,12 +161,6 @@
    "endpoint_id": "fal-ai/kling-video/v3/standard/text-to-video",
    "unit": "seconds",
    "unit_price": 0.14
-  },
-  {
-   "currency": "USD",
-   "endpoint_id": "fal-ai/minimax-music/v2.6",
-   "unit": "audios",
-   "unit_price": 0.15
   },
   {
    "currency": "USD",
@@ -167,18 +185,6 @@
    "endpoint_id": "fal-ai/nano-banana-2",
    "unit": "images",
    "unit_price": 0.08
-  },
-  {
-   "currency": "USD",
-   "endpoint_id": "fal-ai/nano-banana-2/edit",
-   "unit": "images",
-   "unit_price": 0.08
-  },
-  {
-   "currency": "USD",
-   "endpoint_id": "fal-ai/nano-banana-pro",
-   "unit": "images",
-   "unit_price": 0.15
   },
   {
    "currency": "USD",
@@ -231,12 +237,6 @@
   {
    "currency": "USD",
    "endpoint_id": "minimax/h3-max-turbo/image-to-video",
-   "unit": "seconds",
-   "unit_price": 0.01625
-  },
-  {
-   "currency": "USD",
-   "endpoint_id": "minimax/h3-max-turbo/text-to-video",
    "unit": "seconds",
    "unit_price": 0.01625
   },

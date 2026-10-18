@@ -19,12 +19,13 @@ import (
 
 // fal is a TLS fake of every fal host: schema, queue, storage, CDN and pricing.
 type fal struct {
-	srv      *httptest.Server
-	mu       sync.Mutex
-	submits  []map[string]any
-	statuses []string // consumed in order; last repeats
-	result   string
-	uploads  int
+	srv        *httptest.Server
+	mu         sync.Mutex
+	submits    []map[string]any
+	statuses   []string // consumed in order; last repeats
+	result     string
+	resultCode int // 0 means 200
+	uploads    int
 }
 
 func newFal(t *testing.T) *fal {
@@ -72,6 +73,9 @@ func newFal(t *testing.T) *fal {
 			f.submits = append(f.submits, body)
 			_, _ = w.Write([]byte(`{"request_id":"req-1","status_url":"s","response_url":"r","cancel_url":"c"}`))
 		case strings.Contains(p, "/requests/"):
+			if f.resultCode != 0 {
+				w.WriteHeader(f.resultCode)
+			}
 			_, _ = w.Write([]byte(f.result))
 		default:
 			w.WriteHeader(404)
@@ -472,6 +476,39 @@ func TestRunDownloadFailureKeepsLedgerNote(t *testing.T) {
 	}
 	le, ok := ledger.Find(filepath.Join(home, "tasks.jsonl"), "req-1")
 	if !ok || le.State != "success" || !strings.Contains(le.Note, "not downloaded") {
+		t.Fatalf("ledger = %+v", le)
+	}
+}
+
+// A file field holding a non-URL value that is not a local file is sent as text, with a warning.
+func TestRunWarnsWhenFileValueIsNeitherURLNorFile(t *testing.T) {
+	f := newFal(t)
+	code, m, stderr, _ := runFal(t, f, filepath.Join(t.TempDir(), "h"), "run", "fal-ai/kling-video/v2.5-turbo/pro/image-to-video", "-p", "prompt=a cat turns its head", "-p", "image_url=./gone.png", "--dry-run")
+	if code != 0 || m["pendingUploads"].([]any) == nil || len(m["pendingUploads"].([]any)) != 0 {
+		t.Fatalf("code=%d m=%v", code, m)
+	}
+	if !strings.Contains(stderr, "warning: image_url: ./gone.png is not a URL and no such local file exists") {
+		t.Fatalf("stderr = %q", stderr)
+	}
+	code, _, stderr, _ = runFal(t, f, filepath.Join(t.TempDir(), "h"), "run", "fal-ai/kling-video/v2.5-turbo/pro/image-to-video", "-p", "prompt=a cat turns its head", "-p", "image_url=https://x/a.png", "--dry-run")
+	if code != 0 || strings.Contains(stderr, "no such local file") {
+		t.Fatalf("url must not warn: %q", stderr)
+	}
+}
+
+// A server-side 422 on the result is a validation error (exit 2) and the ledger records the failure.
+func TestRunServer422IsValidationAndLedgerFail(t *testing.T) {
+	f := newFal(t)
+	f.resultCode, f.result = 422, `{"detail":[{"loc":["body","output_format"],"msg":"Input should be 'jpeg' or 'png'","type":"literal_error"}]}`
+	home := filepath.Join(t.TempDir(), "h")
+	code, m, _, _ := runFal(t, f, home, "run", "fal-ai/flux/schnell", "-p", "prompt=fox", "-p", "output_format=bmp", "--no-validate")
+	e, _ := m["error"].(map[string]any)
+	d, _ := e["details"].(map[string]any)
+	probs, _ := d["problems"].([]any)
+	if code != 2 || e["code"] != "validation" || d["requestId"] != "req-1" || len(probs) != 1 {
+		t.Fatalf("code=%d m=%v", code, m)
+	}
+	if le, _ := ledger.Find(filepath.Join(home, "tasks.jsonl"), "req-1"); le.State != "fail" || !strings.Contains(le.Note, "rejected") {
 		t.Fatalf("ledger = %+v", le)
 	}
 }

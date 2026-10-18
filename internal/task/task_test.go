@@ -60,7 +60,7 @@ func (q *queue) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte(q.pop(&q.statuses)))
 	case strings.HasSuffix(r.URL.Path, "/cancel"):
 		q.cancel(w)
-	case strings.HasPrefix(r.URL.Path, "/"+ep+"/requests/"):
+	case strings.HasPrefix(r.URL.Path, "/fal-ai/flux/requests/"):
 		q.result(w)
 	default:
 		w.WriteHeader(404)
@@ -316,7 +316,7 @@ func TestCancelAccepted(t *testing.T) {
 	q := &queue{cancel: code(202, `{"status":"CANCELLATION_REQUESTED"}`)}
 	c, _ := setup(t, q)
 	s, err := task.Cancel(context.Background(), c, ep, "req-1")
-	if err != nil || s != "CANCELLATION_REQUESTED" || !strings.HasPrefix(q.calls[0], "PUT /fal-ai/flux/schnell/requests/req-1/cancel") {
+	if err != nil || s != "CANCELLATION_REQUESTED" || !strings.HasPrefix(q.calls[0], "PUT /fal-ai/flux/requests/req-1/cancel") {
 		t.Fatalf("s=%q err=%v calls=%v", s, err, q.calls)
 	}
 }
@@ -370,5 +370,52 @@ func TestRecoverUncertainSkipsRequestsAlreadyInLedger(t *testing.T) {
 	_, err := task.Submit(context.Background(), c, lp, ep, map[string]any{"prompt": "cat"}, "", t0, nil)
 	if asOut(t, err).Code != output.CodeSubmitUncertain {
 		t.Fatalf("adopted a request this CLI already recorded: err = %v", err)
+	}
+}
+
+// fal routes status/result/cancel under the app id (owner/app), not the full endpoint path.
+func TestQueuePathsUseAppID(t *testing.T) {
+	q := &queue{statuses: []string{`{"status":"COMPLETED"}`}, result: ok(`{"images":[]}`), cancel: code(202, `{}`)}
+	c, _ := setup(t, q)
+	if _, err := task.GetStatus(context.Background(), c, ep, "req-1"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := task.GetResult(context.Background(), c, ep, "req-1"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := task.Cancel(context.Background(), c, ep, "req-1"); err != nil {
+		t.Fatal(err)
+	}
+	joined := strings.Join(q.calls, "\n")
+	for _, want := range []string{"GET /fal-ai/flux/requests/req-1/status?logs=1", "GET /fal-ai/flux/requests/req-1", "PUT /fal-ai/flux/requests/req-1/cancel"} {
+		if !strings.Contains(joined, want) {
+			t.Errorf("missing %q in\n%s", want, joined)
+		}
+	}
+	if strings.Contains(joined, "/fal-ai/flux/schnell/requests/") {
+		t.Errorf("full endpoint path used:\n%s", joined)
+	}
+}
+
+// A 422 on the result is the server rejecting the input: validation (exit 2), not task_failed.
+func TestGetResult422IsValidationWithProblems(t *testing.T) {
+	q := &queue{result: code(422, `{"detail":[{"loc":["body","output_format"],"msg":"Input should be 'jpeg' or 'png'","type":"literal_error","ctx":{"expected":"'jpeg' or 'png'"}}]}`)}
+	c, _ := setup(t, q)
+	_, err := task.GetResult(context.Background(), c, ep, "req-1")
+	oe := asOut(t, err)
+	probs, _ := oe.Details["problems"].([]api.Problem)
+	if oe.Code != output.CodeValidation || oe.ExitCode() != 2 || len(probs) != 1 || probs[0].Field != "output_format" || oe.Details["requestId"] != "req-1" || !strings.Contains(oe.Message, "rejected") {
+		t.Fatalf("err = %+v", oe)
+	}
+}
+
+// A 422 whose detail is a plain string keeps the server's reason in the message.
+func TestGetResult422StringDetailKeepsReason(t *testing.T) {
+	q := &queue{result: code(422, `{"detail":"Image too large"}`)}
+	c, _ := setup(t, q)
+	_, err := task.GetResult(context.Background(), c, ep, "req-1")
+	oe := asOut(t, err)
+	if oe.Code != output.CodeValidation || !strings.Contains(oe.Message, "Image too large") || strings.Contains(oe.Message, "0 problem") || oe.Details["requestId"] != "req-1" {
+		t.Fatalf("err = %+v", oe)
 	}
 }

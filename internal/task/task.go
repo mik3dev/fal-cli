@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/mik3dev/fal-cli/internal/api"
@@ -50,8 +51,18 @@ type Status struct {
 	Logs          []string `json:"logs,omitempty"`
 }
 
+// AppID is the owner/app prefix of an endpoint (fal-ai/flux/schnell → fal-ai/flux):
+// the queue routes status, result and cancel under it, not under the full path.
+func AppID(endpoint string) string {
+	parts := strings.SplitN(endpoint, "/", 3)
+	if len(parts) < 2 {
+		return endpoint
+	}
+	return parts[0] + "/" + parts[1]
+}
+
 func reqPath(endpoint, id, suffix string) string {
-	return "/" + endpoint + "/requests/" + id + suffix
+	return "/" + AppID(endpoint) + "/requests/" + id + suffix
 }
 
 // Submit POSTs input to the queue and records the request in the ledger.
@@ -199,6 +210,17 @@ func GetResult(ctx context.Context, c *api.Client, endpoint, id string) (json.Ra
 		}
 		if ae.Status == http.StatusNotFound || ae.Status == http.StatusGone {
 			return nil, &output.Error{Code: output.CodeTaskFailed, Message: fmt.Sprintf("request %s: result expired or not found", id), Details: details}
+		}
+		if ae.Status == http.StatusUnprocessableEntity {
+			// The server rejected the input after queueing: a validation error, like a local one.
+			oe := ae.AsOutput()
+			if len(ae.Problems) > 0 {
+				oe.Message = fmt.Sprintf("request %s: input rejected by %s (%d problem(s)); fix the fields", id, endpoint, len(ae.Problems))
+			} else {
+				oe.Message = fmt.Sprintf("request %s: input rejected by %s: %s", id, endpoint, ae.Message)
+			}
+			oe.Details["requestId"] = id
+			return nil, oe
 		}
 		return nil, &output.Error{Code: output.CodeTaskFailed, Message: fmt.Sprintf("request %s failed: %s", id, ae.Message), Details: details}
 	}

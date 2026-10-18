@@ -251,3 +251,16 @@ func TestResolveRejectsExponentialExpansion(t *testing.T) {
 		t.Fatalf("err = %v", err)
 	}
 }
+
+// Websocket endpoints publish a queue document whose input $ref has no schema (live sweep, stage 6).
+func TestFetchWithoutInputSchemaIsUnsupported(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"openapi":"3.0.4","info":{"title":"ws"},"paths":{"/x/ws":{"post":{"requestBody":{"content":{"application/json":{"schema":{"$ref":"#/components/schemas/WsInput"}}}}}}},"components":{"schemas":{}}}`))
+	}))
+	t.Cleanup(srv.Close)
+	_, err := schema.Fetch(context.Background(), newClient(srv.URL), t.TempDir(), "x/ws", false, time.Now())
+	var oe *output.Error
+	if !errors.As(err, &oe) || oe.Code != output.CodeValidation || !strings.Contains(oe.Message, "x/ws") || !strings.Contains(oe.Message, "not supported") {
+		t.Fatalf("err = %v", err)
+	}
+}

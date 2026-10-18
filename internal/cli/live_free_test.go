@@ -4,6 +4,7 @@ package cli_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -16,6 +17,7 @@ import (
 
 	"github.com/mik3dev/fal-cli/internal/api"
 	"github.com/mik3dev/fal-cli/internal/cli"
+	"github.com/mik3dev/fal-cli/internal/output"
 	"github.com/mik3dev/fal-cli/internal/schema"
 	"github.com/mik3dev/fal-cli/internal/upload"
 )
@@ -131,7 +133,7 @@ func TestLiveFreeCatalogAndSchemas(t *testing.T) {
 		}
 	}
 	var b strings.Builder
-	fmt.Fprintf(&b, "# Live sweep %s\n\nendpoints: %d — ok %d, validation(404) %d, api %d, summarize %d\nfile keys detected: %d\n\n", time.Now().UTC().Format(time.RFC3339), len(all), counts["ok"], counts["validation"], counts["api"], counts["summarize"], fileKeys)
+	fmt.Fprintf(&b, "# Live sweep %s\n\nendpoints: %d — ok %d, validation %d, api %d, summarize %d\nfile keys detected: %d\n\n", time.Now().UTC().Format(time.RFC3339), len(all), counts["ok"], counts["validation"], counts["api"], counts["summarize"], fileKeys)
 	fmt.Fprintf(&b, "## Failed (%d)\n\n", len(failed))
 	for _, f := range failed {
 		fmt.Fprintf(&b, "- %s\n", f)
@@ -176,8 +178,9 @@ func sweepOne(ctx context.Context, c *api.Client, cacheDir, id string) sweepResu
 	doc, err := schema.Fetch(ctx, c, cacheDir, id, false, time.Now())
 	if err != nil {
 		r.outcome = "api"
-		if strings.Contains(err.Error(), "unknown model") {
-			r.outcome = "validation"
+		var oe *output.Error
+		if errors.As(err, &oe) && oe.Code == output.CodeValidation {
+			r.outcome = "validation" // unknown model (404) or an endpoint run does not support (websocket)
 		}
 		return r
 	}

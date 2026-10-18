@@ -5,6 +5,7 @@ package schema
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -40,7 +41,8 @@ func Fetch(ctx context.Context, c *api.Client, cacheDir, endpoint string, refres
 	}
 	req := api.Request{Method: http.MethodGet, Path: "/api/openapi/queue/openapi.json", Query: url.Values{"endpoint_id": {endpoint}}, Host: api.HostSchema, NoAuth: true}
 	if _, err := c.Do(ctx, req, &raw); err != nil {
-		if ae, ok := err.(*api.Error); ok && ae.IsNotFound() {
+		var ae *api.Error
+		if errors.As(err, &ae) && ae.IsNotFound() {
 			return Doc{}, &output.Error{Code: output.CodeValidation, Message: "unknown model: " + endpoint}
 		}
 		return Doc{}, err

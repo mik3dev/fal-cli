@@ -448,3 +448,30 @@ func TestRunPromptPathNeverUploaded(t *testing.T) {
 		t.Fatalf("code=%d m=%v submits=%v", code, m, f.submits)
 	}
 }
+
+func TestRunNoWaitWarnsExpiry(t *testing.T) {
+	f := newFal(t)
+	_, _, errw, _ := runFal(t, f, filepath.Join(t.TempDir(), "h"), "run", "fal-ai/flux/schnell", "-p", "prompt=fox", "--no-wait")
+	if !strings.Contains(errw, "expires") || !strings.Contains(errw, "task wait req-1") {
+		t.Fatalf("stderr = %q", errw)
+	}
+}
+
+func TestRunDownloadFailureKeepsLedgerNote(t *testing.T) {
+	f := newFal(t)
+	f.result = `{"images":[{"url":"` + f.srv.URL + `/cdn/ok.jpeg","content_type":"image/jpeg"},{"url":"` + f.srv.URL + `/missing/a.jpeg","content_type":"image/jpeg"}]}`
+	home := filepath.Join(t.TempDir(), "h")
+	code, m, _, _ := runFal(t, f, home, "run", "fal-ai/flux/schnell", "-p", "prompt=fox")
+	e, _ := m["error"].(map[string]any)
+	d, _ := e["details"].(map[string]any)
+	if code != 1 || e["code"] != "io" || d["requestId"] != "req-1" || d["media"] == nil {
+		t.Fatalf("code=%d m=%v", code, m)
+	}
+	if saved, _ := d["files"].([]any); len(saved) != 1 {
+		t.Fatalf("partial files not reported: %v", d)
+	}
+	le, ok := ledger.Find(filepath.Join(home, "tasks.jsonl"), "req-1")
+	if !ok || le.State != "success" || !strings.Contains(le.Note, "not downloaded") {
+		t.Fatalf("ledger = %+v", le)
+	}
+}

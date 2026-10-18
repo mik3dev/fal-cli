@@ -82,6 +82,13 @@ func newTaskGetCmd(deps Deps) *cobra.Command {
 			if s.State == task.StateInQueue {
 				out["queuePosition"] = s.QueuePosition
 			}
+			if s.State == task.StateCompleted && s.Error != "" {
+				details := map[string]any{"requestId": args[0], "state": s.State}
+				if s.ErrorType != "" {
+					details["errorType"] = s.ErrorType
+				}
+				return &output.Error{Code: output.CodeTaskFailed, Message: fmt.Sprintf("request %s failed: %s", args[0], s.Error), Details: details}
+			}
 			if s.State == task.StateCompleted {
 				raw, err := task.GetResult(cmd.Context(), c, endpoint, args[0])
 				if err != nil {
@@ -116,7 +123,9 @@ func newTaskCancelCmd(deps Deps) *cobra.Command {
 				return err
 			}
 			if status == "CANCELLATION_REQUESTED" {
-				_ = ledger.Append(paths.Ledger, ledger.Entry{RequestID: args[0], Endpoint: endpoint, State: task.LedgerCancelled, CreatedAt: deps.Now()})
+				if err := ledger.Append(paths.Ledger, ledger.Entry{RequestID: args[0], Endpoint: endpoint, State: task.LedgerCancelled, CreatedAt: deps.Now()}); err != nil {
+					_, _ = fmt.Fprintf(warnWriter(cmd, deps), "warning: could not record request %s in the ledger: %v\n", args[0], err)
+				}
 			}
 			return output.Success(deps.Stdout, map[string]any{"requestId": args[0], "model": endpoint, "status": status})
 		},

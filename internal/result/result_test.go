@@ -2,9 +2,14 @@ package result_test
 
 import (
 	"encoding/json"
+	"fmt"
+	"os"
+	"sort"
+	"strings"
 	"testing"
 
 	"github.com/mik3dev/fal-cli/internal/result"
+	"github.com/mik3dev/fal-cli/internal/schema"
 )
 
 const fluxOut = `{"images":[{"url":"https://v3.fal.media/files/a.jpeg","width":1024,"height":768,"content_type":"image/jpeg"},{"url":"https://v3.fal.media/files/b.jpeg","content_type":"image/jpeg"}],"timings":{"inference":0.3},"seed":42,"has_nsfw_concepts":[false,false],"prompt":"cat"}`
@@ -69,4 +74,163 @@ func TestIDsHaveRequestAndSeed(t *testing.T) {
 	if s := result.IDs("r", single, result.Extract(single)); s["images_url"] != "https://v3.fal.media/files/a.jpeg" {
 		t.Fatalf("single = %v", s)
 	}
+}
+
+func TestExtractFileWithoutContentType(t *testing.T) {
+	out := `{"images":[{"url":"https://v3.fal.media/a.png","width":1,"height":1}],"thumb":{"url":"https://v3.fal.media/t.png","file_size":10}}`
+	m := result.Extract(json.RawMessage(out))
+	if len(m) != 2 || m[0].Key != "images[0]" || m[1].Key != "thumb" {
+		t.Fatalf("m = %+v", m)
+	}
+	if got := result.Extract(json.RawMessage(`{"link":{"url":"https://x/y"}}`)); len(got) != 0 {
+		t.Fatalf("url alone must not be a file: %+v", got)
+	}
+}
+
+func TestExtractStems(t *testing.T) {
+	out := `{"vocals":{"url":"https://v3.fal.media/v.wav","content_type":"audio/wav"},"drums":{"url":"https://v3.fal.media/d.wav","content_type":"audio/wav"},"bass":{"url":"https://v3.fal.media/b.wav","content_type":"audio/wav"}}`
+	m := result.Extract(json.RawMessage(out))
+	if len(m) != 3 || m[0].Key != "vocals" || m[1].Key != "drums" || m[2].Key != "bass" {
+		t.Fatalf("m = %+v", m)
+	}
+	ids := result.IDs("r", json.RawMessage(out), m)
+	if ids["vocals_url"] != "https://v3.fal.media/v.wav" || ids["drums_url"] == nil || ids["bass_url"] == nil {
+		t.Fatalf("ids = %v", ids)
+	}
+}
+
+func TestIDsDuration(t *testing.T) {
+	out := json.RawMessage(`{"video":{"url":"https://v3.fal.media/v.mp4","content_type":"video/mp4"},"duration":5.2}`)
+	ids := result.IDs("r", out, result.Extract(out))
+	if ids["duration"] != float64(5.2) {
+		t.Fatalf("ids = %v", ids)
+	}
+	if _, ok := result.IDs("r", json.RawMessage(klingOut), nil)["duration"]; ok {
+		t.Fatal("duration must be absent")
+	}
+}
+
+// TestExtractFindsEveryFileInCapturedOutputs instantiates every *Output schema
+// of the captured fixtures and checks Extract finds each File-shaped object.
+func TestExtractFindsEveryFileInCapturedOutputs(t *testing.T) {
+	entries, err := os.ReadDir("../../testdata/live/schemas")
+	if err != nil {
+		t.Fatal(err)
+	}
+	files, fixtures := 0, 0
+	for _, e := range entries {
+		raw, err := os.ReadFile("../../testdata/live/schemas/" + e.Name())
+		if err != nil {
+			t.Fatal(err)
+		}
+		var doc map[string]any
+		if err := json.Unmarshal(raw, &doc); err != nil {
+			t.Fatal(err)
+		}
+		comps, _ := doc["components"].(map[string]any)
+		schemas, _ := comps["schemas"].(map[string]any)
+		names := make([]string, 0, len(schemas))
+		for n := range schemas {
+			if strings.HasSuffix(n, "Output") {
+				names = append(names, n)
+			}
+		}
+		sort.Strings(names)
+		found := false
+		for _, n := range names {
+			resolved, err := schema.Resolve(doc, schemas[n])
+			if err != nil {
+				t.Fatalf("%s %s: %v", e.Name(), n, err)
+			}
+			gen := &instantiator{}
+			v := gen.value("", resolved.(map[string]any))
+			want := countFiles(v)
+			payload, _ := json.Marshal(v)
+			got := result.Extract(payload)
+			if len(got) != want {
+				t.Errorf("%s %s: want %d files, got %d: %s", e.Name(), n, want, len(got), payload)
+			}
+			if want > 0 {
+				found = true
+			}
+			files += want
+		}
+		if found {
+			fixtures++
+		}
+	}
+	t.Logf("%d files across %d fixtures", files, fixtures)
+	if files < 50 || fixtures < 40 {
+		t.Fatalf("too few: %d files, %d fixtures", files, fixtures)
+	}
+}
+
+type instantiator struct{ n int }
+
+func (g *instantiator) value(key string, s map[string]any) any {
+	if anyOf, ok := s["anyOf"].([]any); ok {
+		for _, b := range anyOf {
+			if bm, ok := b.(map[string]any); ok && bm["type"] != "null" {
+				return g.value(key, bm)
+			}
+		}
+		return nil
+	}
+	typ, _ := s["type"].(string)
+	if typ == "" {
+		if _, ok := s["properties"]; ok {
+			typ = "object"
+		}
+	}
+	switch typ {
+	case "object":
+		out := map[string]any{}
+		props, _ := s["properties"].(map[string]any)
+		for k, p := range props {
+			pm, _ := p.(map[string]any)
+			out[k] = g.value(k, pm)
+		}
+		return out
+	case "array":
+		items, _ := s["items"].(map[string]any)
+		return []any{g.value(key, items)}
+	case "string":
+		if key == "url" {
+			g.n++
+			return fmt.Sprintf("https://v3.fal.media/files/%d.bin", g.n)
+		}
+		return "s"
+	case "integer", "number":
+		return 1
+	case "boolean":
+		return true
+	}
+	return "s"
+}
+
+var fileKeys = []string{"content_type", "file_name", "file_size", "width", "height"}
+
+func countFiles(v any) int {
+	switch n := v.(type) {
+	case map[string]any:
+		if _, ok := n["url"]; ok {
+			for _, k := range fileKeys {
+				if _, ok := n[k]; ok {
+					return 1
+				}
+			}
+		}
+		c := 0
+		for _, child := range n {
+			c += countFiles(child)
+		}
+		return c
+	case []any:
+		c := 0
+		for _, child := range n {
+			c += countFiles(child)
+		}
+		return c
+	}
+	return 0
 }

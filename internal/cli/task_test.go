@@ -93,3 +93,42 @@ func TestTaskCancelCommandUsesLedgerEndpoint(t *testing.T) {
 		t.Fatalf("ledger = %+v", e)
 	}
 }
+
+func TestTaskCancelLedgerWriteFailureWarns(t *testing.T) {
+	srv := fakeQueue(t, ``, ``, 202)
+	env := apiEnv(srv)
+	home := filepath.Join(t.TempDir(), "home")
+	if err := os.MkdirAll(filepath.Join(home, "tasks.jsonl"), 0o700); err != nil { // ledger path is a directory: unwritable
+		t.Fatal(err)
+	}
+	env["FAL_CLI_HOME"] = home
+	code, m, errw := run(t, env, "task", "cancel", "req-7", "--model", "fal-ai/x")
+	if code != 0 || m["status"] != "CANCELLATION_REQUESTED" {
+		t.Fatalf("code=%d m=%v stderr=%s", code, m, errw)
+	}
+	if !strings.Contains(errw.String(), "could not record request req-7") {
+		t.Fatalf("stderr = %q", errw.String())
+	}
+}
+
+func TestTaskGetCompletedWithErrorSkipsResult(t *testing.T) {
+	var resultCalls atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, "/status") {
+			_, _ = w.Write([]byte(`{"status":"COMPLETED","error":"nsfw","error_type":"content_policy_violation"}`))
+			return
+		}
+		resultCalls.Add(1)
+		_, _ = w.Write([]byte(`{"images":[]}`))
+	}))
+	t.Cleanup(srv.Close)
+	code, m, _ := run(t, apiEnv(srv), "task", "get", "req-1", "--model", "fal-ai/flux/schnell")
+	e, _ := m["error"].(map[string]any)
+	d, _ := e["details"].(map[string]any)
+	if code != 5 || e["code"] != "task_failed" || !strings.Contains(e["message"].(string), "nsfw") || d["requestId"] != "req-1" || d["errorType"] != "content_policy_violation" || d["state"] != "COMPLETED" {
+		t.Fatalf("code=%d m=%v", code, m)
+	}
+	if resultCalls.Load() != 0 {
+		t.Fatalf("result fetched: calls=%d m=%v", resultCalls.Load(), m)
+	}
+}

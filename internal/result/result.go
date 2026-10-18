@@ -20,7 +20,7 @@ type Media struct {
 }
 
 // Extract walks the payload depth-first and collects every File-shaped object
-// ({url, content_type|file_name}) and every fal-hosted https string under a
+// ({url} plus any of content_type, file_name, file_size, width, height}) and every fal-hosted https string under a
 // *_url / *_urls key. Order of appearance; one entry per URL.
 func Extract(payload json.RawMessage) []Media {
 	root, err := decodeOrdered(payload)
@@ -143,12 +143,24 @@ func fileObject(n map[string]any) (Media, bool) {
 	if !ok || u == "" {
 		return Media{}, false
 	}
-	ct, hasCT := n["content_type"].(string)
-	fn, hasFN := n["file_name"].(string)
-	if !hasCT && !hasFN {
+	if !hasFileKey(n) {
 		return Media{}, false
 	}
+	ct, _ := n["content_type"].(string)
+	fn, _ := n["file_name"].(string)
 	return Media{URL: u, ContentType: ct, FileName: fn}, true
+}
+
+// fileKeys are the File properties that, next to url, mark a downloadable object.
+var fileKeys = []string{"content_type", "file_name", "file_size", "width", "height"}
+
+func hasFileKey(n map[string]any) bool {
+	for _, k := range fileKeys {
+		if _, ok := n[k]; ok {
+			return true
+		}
+	}
+	return false
 }
 
 func join(prefix, k string) string {
@@ -169,14 +181,16 @@ func isFalURL(s string) bool {
 	return h == "fal.media" || h == "fal.run" || strings.HasSuffix(h, ".fal.media") || strings.HasSuffix(h, ".fal.run")
 }
 
-// IDs builds the identifiers block: request_id, root seed when present and
+// IDs builds the identifiers block: request_id, root seed and duration when present and
 // one <key>_url (single) or <key>_urls (several) per media group.
 func IDs(requestID string, payload json.RawMessage, media []Media) map[string]any {
 	ids := map[string]any{"request_id": requestID}
 	var root map[string]any
 	if json.Unmarshal(payload, &root) == nil {
-		if seed, ok := root["seed"]; ok && seed != nil {
-			ids["seed"] = seed
+		for _, k := range []string{"seed", "duration"} {
+			if v, ok := root[k]; ok && v != nil {
+				ids[k] = v
+			}
 		}
 	}
 	groups := map[string][]string{}

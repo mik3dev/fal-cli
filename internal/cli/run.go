@@ -81,6 +81,9 @@ func runModel(cmd *cobra.Command, deps Deps, endpoint string) error {
 	if dry, _ := flags.GetBool("dry-run"); dry {
 		return emitDryRun(cmd, deps, c, paths, endpoint, prep, warn)
 	}
+	for _, pu := range pendingUploads(prep.input, prep.isFile) {
+		_, _ = fmt.Fprintf(warn, "uploading %s (%s) to fal storage\n", pu.path, pu.key)
+	}
 	input, uploaded, err := upload.Resolve(cmd.Context(), c, prep.input, prep.isFile, fileExists)
 	if err != nil {
 		return err
@@ -213,9 +216,13 @@ func fileExists(p string) bool {
 	return err == nil && !st.IsDir()
 }
 
-// pendingUploads lists the local files that a real run would upload.
-func pendingUploads(input map[string]any, isFile func(string) bool) []string {
-	out := []string{}
+type pendingUpload struct {
+	path, key string
+}
+
+// pendingUploads lists the local files (and their keys) that a real run would upload, sorted by path.
+func pendingUploads(input map[string]any, isFile func(string) bool) []pendingUpload {
+	out := []pendingUpload{}
 	for k, v := range input {
 		if !isFile(k) {
 			continue
@@ -226,17 +233,25 @@ func pendingUploads(input map[string]any, isFile func(string) bool) []string {
 		}
 		for _, it := range items {
 			if s, ok := it.(string); ok && !strings.HasPrefix(s, "http://") && !strings.HasPrefix(s, "https://") && !strings.HasPrefix(s, "data:") && fileExists(s) {
-				out = append(out, s)
+				out = append(out, pendingUpload{path: s, key: k})
 			}
 		}
 	}
-	sort.Strings(out)
+	sort.Slice(out, func(i, j int) bool { return out[i].path < out[j].path })
+	return out
+}
+
+func pendingPaths(ps []pendingUpload) []string {
+	out := make([]string, len(ps))
+	for i, p := range ps {
+		out[i] = p.path
+	}
 	return out
 }
 
 // emitDryRun prints the request that would be sent; nothing is uploaded or submitted.
 func emitDryRun(cmd *cobra.Command, deps Deps, c *api.Client, paths config.Paths, endpoint string, p preparedInput, warn io.Writer) error {
-	out := map[string]any{"dryRun": true, "model": endpoint, "input": p.input, "pendingUploads": pendingUploads(p.input, p.isFile), "price": nil}
+	out := map[string]any{"dryRun": true, "model": endpoint, "input": p.input, "pendingUploads": pendingPaths(pendingUploads(p.input, p.isFile)), "price": nil}
 	if len(p.problems) > 0 {
 		out["problems"] = p.problems
 	}

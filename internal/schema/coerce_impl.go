@@ -2,6 +2,8 @@ package schema
 
 import (
 	"encoding/json"
+	"errors"
+	"io"
 	"math"
 	"strconv"
 	"strings"
@@ -286,12 +288,21 @@ func compositeLiteral(p map[string]any, types []string, s string) (any, bool) {
 	return nil, false
 }
 
-// unmarshalNumbers decodes JSON keeping numbers as json.Number.
+// unmarshalNumbers decodes exactly one JSON value keeping numbers as
+// json.Number; trailing input is an error so "[1,2] extra" stays a string.
 func unmarshalNumbers(s string, into any) error {
 	dec := json.NewDecoder(strings.NewReader(s))
 	dec.UseNumber()
-	return dec.Decode(into)
+	if err := dec.Decode(into); err != nil {
+		return err
+	}
+	if _, err := dec.Token(); err != io.EOF {
+		return errTrailing
+	}
+	return nil
 }
+
+var errTrailing = errors.New("trailing data after JSON value")
 
 // stringToArray reads a JSON array literal, or wraps any other string.
 func stringToArray(s string) []any {

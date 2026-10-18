@@ -41,7 +41,9 @@ func TestSchemaFileKeyByDescription(t *testing.T) {
 		"count":  map[string]any{"type": "integer", "description": "URL count"},
 		"srcs":   map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "description": "List of URLs"},
 	}}
-	for k, want := range map[string]bool{"source": true, "prompt": false, "count": false, "srcs": true} {
+	// Description alone never marks a file field: it would let a schema
+	// text upload an arbitrary local path the user meant as text.
+	for k, want := range map[string]bool{"source": false, "prompt": false, "count": false, "srcs": false} {
 		if got := upload.SchemaFileKey(sch, k); got != want {
 			t.Errorf("%q = %v, want %v", k, got, want)
 		}

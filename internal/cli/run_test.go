@@ -429,6 +429,16 @@ func TestRunUploadsUIFieldFile(t *testing.T) {
 	}
 }
 
+func TestRunWarnsBeforeEachUpload(t *testing.T) {
+	f := newFal(t)
+	png := filepath.Join(t.TempDir(), "x.png")
+	_ = os.WriteFile(png, []byte("P"), 0o600)
+	_, _, errOut, _ := runFal(t, f, filepath.Join(t.TempDir(), "h"), "run", "fal-ai/kling-video/v2.5-turbo/pro/image-to-video", "-p", "prompt=fox", "-p", "image_url="+png, "--no-wait")
+	if !strings.Contains(errOut, "uploading "+png+" (image_url)") {
+		t.Fatalf("stderr = %q", errOut)
+	}
+}
+
 func TestRunPromptPathNeverUploaded(t *testing.T) {
 	f := newFal(t)
 	txt := filepath.Join(t.TempDir(), "README.md")

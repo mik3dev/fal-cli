@@ -83,3 +83,16 @@ func TestPropSchemaFindsInBranches(t *testing.T) {
 		t.Fatal("nil schema found")
 	}
 }
+
+func TestCoerceRejectsTrailingJSON(t *testing.T) {
+	sch := fetch(t, "fal-ai/flux/schnell").Input
+	for _, v := range []string{`{"width":512} junk`, `{"a":1}{"b":2}`} {
+		if out := schema.Coerce(sch, map[string]any{"image_size": v}); out["image_size"] != v {
+			t.Errorf("%q → %#v, want unchanged", v, out["image_size"])
+		}
+	}
+	arr := map[string]any{"properties": map[string]any{"nums": map[string]any{"type": "array", "items": map[string]any{"type": "integer"}}}}
+	if out := schema.Coerce(arr, map[string]any{"nums": "[1,2] extra"}); !reflect.DeepEqual(out["nums"], []any{"[1,2] extra"}) {
+		t.Errorf("array → %#v", out["nums"])
+	}
+}

@@ -1,0 +1,286 @@
+{
+ "prices": [
+  {
+   "currency": "USD",
+   "endpoint_id": "alibaba/wan-3.0-prime/reference-to-video",
+   "unit": "seconds",
+   "unit_price": 0.05
+  },
+  {
+   "currency": "USD",
+   "endpoint_id": "alibaba/wan-3.0/reference-to-video",
+   "unit": "seconds",
+   "unit_price": 0.05
+  },
+  {
+   "currency": "USD",
+   "endpoint_id": "elevenlabs/music/v2.5",
+   "unit": "minutes",
+   "unit_price": 0.6
+  },
+  {
+   "currency": "USD",
+   "endpoint_id": "elevenlabs/tts/eleven-v4",
+   "unit": "1000 characters",
+   "unit_price": 0.08
+  },
+  {
+   "currency": "USD",
+   "endpoint_id": "fal-ai/audio-understanding",
+   "unit": "5 seconds",
+   "unit_price": 0.01
+  },
+  {
+   "currency": "USD",
+   "endpoint_id": "fal-ai/demucs",
+   "unit": "seconds",
+   "unit_price": 0.0007
+  },
+  {
+   "currency": "USD",
+   "endpoint_id": "fal-ai/elevenlabs/audio-isolation",
+   "unit": "minutes",
+   "unit_price": 0.1
+  },
+  {
+   "currency": "USD",
+   "endpoint_id": "fal-ai/elevenlabs/music",
+   "unit": "minutes",
+   "unit_price": 0.6
+  },
+  {
+   "currency": "USD",
+   "endpoint_id": "fal-ai/elevenlabs/sound-effects/v2",
+   "unit": "seconds",
+   "unit_price": 0.002
+  },
+  {
+   "currency": "USD",
+   "endpoint_id": "fal-ai/elevenlabs/tts/eleven-v3",
+   "unit": "1000 characters",
+   "unit_price": 0.1
+  },
+  {
+   "currency": "USD",
+   "endpoint_id": "fal-ai/elevenlabs/tts/multilingual-v2",
+   "unit": "1000 characters",
+   "unit_price": 0.1
+  },
+  {
+   "currency": "USD",
+   "endpoint_id": "fal-ai/elevenlabs/tts/turbo-v2.5",
+   "unit": "1000 characters",
+   "unit_price": 0.05
+  },
+  {
+   "currency": "USD",
+   "endpoint_id": "fal-ai/elevenlabs/voice-changer",
+   "unit": "minutes",
+   "unit_price": 0.3
+  },
+  {
+   "currency": "USD",
+   "endpoint_id": "fal-ai/flux-2/klein/9b",
+   "unit": "megapixels",
+   "unit_price": 0.006
+  },
+  {
+   "currency": "USD",
+   "endpoint_id": "fal-ai/flux/dev",
+   "unit": "megapixels",
+   "unit_price": 0.025
+  },
+  {
+   "currency": "USD",
+   "endpoint_id": "fal-ai/flux/schnell",
+   "unit": "megapixels",
+   "unit_price": 0.003
+  },
+  {
+   "currency": "USD",
+   "endpoint_id": "fal-ai/kling-video/lipsync/audio-to-video",
+   "unit": "units",
+   "unit_price": 0.014
+  },
+  {
+   "currency": "USD",
+   "endpoint_id": "fal-ai/kling-video/o3/pro/video-to-video/edit",
+   "unit": "seconds",
+   "unit_price": 0.14
+  },
+  {
+   "currency": "USD",
+   "endpoint_id": "fal-ai/kling-video/v2.5-turbo/pro/image-to-video",
+   "unit": "seconds",
+   "unit_price": 0.07
+  },
+  {
+   "currency": "USD",
+   "endpoint_id": "fal-ai/kling-video/v2.5-turbo/pro/text-to-video",
+   "unit": "seconds",
+   "unit_price": 0.07
+  },
+  {
+   "currency": "USD",
+   "endpoint_id": "fal-ai/kling-video/v3/pro/image-to-video",
+   "unit": "seconds",
+   "unit_price": 0.14
+  },
+  {
+   "currency": "USD",
+   "endpoint_id": "fal-ai/kling-video/v3/pro/text-to-video",
+   "unit": "seconds",
+   "unit_price": 0.14
+  },
+  {
+   "currency": "USD",
+   "endpoint_id": "fal-ai/kling-video/v3/standard/text-to-video",
+   "unit": "seconds",
+   "unit_price": 0.14
+  },
+  {
+   "currency": "USD",
+   "endpoint_id": "fal-ai/minimax-music/v2.6",
+   "unit": "audios",
+   "unit_price": 0.15
+  },
+  {
+   "currency": "USD",
+   "endpoint_id": "fal-ai/minimax/hailuo-02/standard/text-to-video",
+   "unit": "seconds",
+   "unit_price": 0.045
+  },
+  {
+   "currency": "USD",
+   "endpoint_id": "fal-ai/minimax/speech-02-hd",
+   "unit": "1000 characters",
+   "unit_price": 0.1
+  },
+  {
+   "currency": "USD",
+   "endpoint_id": "fal-ai/minimax/speech-2.8-hd",
+   "unit": "1000 characters",
+   "unit_price": 0.1
+  },
+  {
+   "currency": "USD",
+   "endpoint_id": "fal-ai/nano-banana-2",
+   "unit": "images",
+   "unit_price": 0.08
+  },
+  {
+   "currency": "USD",
+   "endpoint_id": "fal-ai/nano-banana-2/edit",
+   "unit": "images",
+   "unit_price": 0.08
+  },
+  {
+   "currency": "USD",
+   "endpoint_id": "fal-ai/nano-banana-pro",
+   "unit": "images",
+   "unit_price": 0.15
+  },
+  {
+   "currency": "USD",
+   "endpoint_id": "fal-ai/nano-banana-pro/edit",
+   "unit": "images",
+   "unit_price": 0.15
+  },
+  {
+   "currency": "USD",
+   "endpoint_id": "fal-ai/sam-audio/separate",
+   "unit": "units",
+   "unit_price": 0.05
+  },
+  {
+   "currency": "USD",
+   "endpoint_id": "fal-ai/sync-lipsync/v2",
+   "unit": "minutes",
+   "unit_price": 3
+  },
+  {
+   "currency": "USD",
+   "endpoint_id": "fal-ai/sync-lipsync/v3",
+   "unit": "minutes",
+   "unit_price": 8
+  },
+  {
+   "currency": "USD",
+   "endpoint_id": "fal-ai/veo3.1/fast",
+   "unit": "seconds",
+   "unit_price": 0.15
+  },
+  {
+   "currency": "USD",
+   "endpoint_id": "fal-ai/veo3.1/fast/first-last-frame-to-video",
+   "unit": "seconds",
+   "unit_price": 0.15
+  },
+  {
+   "currency": "USD",
+   "endpoint_id": "google/gemini-3.8-flash-tts",
+   "unit": "1000 characters",
+   "unit_price": 0.045
+  },
+  {
+   "currency": "USD",
+   "endpoint_id": "google/nano-banana-2.1/edit",
+   "unit": "units",
+   "unit_price": 1
+  },
+  {
+   "currency": "USD",
+   "endpoint_id": "minimax/h3-max-turbo/image-to-video",
+   "unit": "seconds",
+   "unit_price": 0.01625
+  },
+  {
+   "currency": "USD",
+   "endpoint_id": "minimax/h3-max-turbo/text-to-video",
+   "unit": "seconds",
+   "unit_price": 0.01625
+  },
+  {
+   "currency": "USD",
+   "endpoint_id": "minimax/h3-max/image-to-video",
+   "unit": "seconds",
+   "unit_price": 0.0325
+  },
+  {
+   "currency": "USD",
+   "endpoint_id": "minimax/h3-max/reference-to-video",
+   "unit": "seconds",
+   "unit_price": 0.05
+  },
+  {
+   "currency": "USD",
+   "endpoint_id": "minimax/h3-max/text-to-video",
+   "unit": "seconds",
+   "unit_price": 0.0325
+  },
+  {
+   "currency": "USD",
+   "endpoint_id": "minimax/music-3",
+   "unit": "seconds",
+   "unit_price": 0.002
+  },
+  {
+   "currency": "USD",
+   "endpoint_id": "openai/gpt-image-2",
+   "unit": "units",
+   "unit_price": 1
+  },
+  {
+   "currency": "USD",
+   "endpoint_id": "openai/gpt-image-2.5/sunburst/edit",
+   "unit": "units",
+   "unit_price": 1
+  },
+  {
+   "currency": "USD",
+   "endpoint_id": "openai/gpt-image-2/edit",
+   "unit": "units",
+   "unit_price": 1
+  }
+ ]
+}

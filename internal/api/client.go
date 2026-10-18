@@ -254,9 +254,9 @@ func (c *Client) once(ctx context.Context, r Request, payload []byte) (*Response
 		return nil, &NetError{Sent: true, Err: c.scrubErr(err)}
 	}
 	if resp.StatusCode < 200 || resp.StatusCode > 299 {
-		e := decodeError(resp.StatusCode, resp.Header, raw)
-		e.Message = c.scrub(e.Message)
-		return nil, e
+		// Scrub the whole body before decoding so no field (problems, ctx,
+		// error_type, Raw) can carry the key.
+		return nil, decodeError(resp.StatusCode, c.scrubHeader(resp.Header), []byte(c.scrub(string(raw))))
 	}
 	return &Response{Status: resp.StatusCode, Header: resp.Header, Body: raw}, nil
 }
@@ -273,6 +273,14 @@ func (c *Client) scrub(s string) string {
 		return s
 	}
 	return strings.ReplaceAll(s, c.Key, config.Redact(c.Key))
+}
+
+func (c *Client) scrubHeader(h http.Header) http.Header {
+	if v := h.Get("X-Fal-Error-Type"); v != "" {
+		h = h.Clone()
+		h.Set("X-Fal-Error-Type", c.scrub(v))
+	}
+	return h
 }
 
 func (c *Client) scrubErr(err error) error {

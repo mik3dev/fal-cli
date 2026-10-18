@@ -3,6 +3,7 @@ package api_test
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -352,5 +353,19 @@ func TestEnvOverridesHosts(t *testing.T) {
 	d := api.New("k", func(string) string { return "" })
 	if d.PlatformURL != "https://api.fal.ai" || d.QueueURL != "https://queue.fal.run" || d.StorageURL != "https://rest.alpha.fal.ai" || d.SchemaURL != "https://fal.ai" {
 		t.Fatalf("defaults = %+v", d)
+	}
+}
+
+func TestNoKeyLeakInProblemsAndErrorType(t *testing.T) {
+	srv := serve(t, func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(422)
+		_, _ = w.Write([]byte(`{"detail":[{"loc":["body","k-secret"],"msg":"bad k-secret","type":"k-secret","ctx":{"v":"k-secret"}}],"error_type":"k-secret"}`))
+	})
+	c, _ := newClient(t, srv.URL)
+	_, err := c.Do(context.Background(), api.Request{Method: "POST", Path: "/x", Host: api.HostQueue, Body: map[string]any{}}, nil)
+	ae := apiErr(t, err)
+	b, _ := json.Marshal(ae.AsOutput())
+	if strings.Contains(string(b), "k-secret") || strings.Contains(string(ae.Raw), "k-secret") {
+		t.Fatalf("leak: %s", b)
 	}
 }

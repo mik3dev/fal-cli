@@ -140,9 +140,9 @@ Tests never call the real API: they run against `httptest` servers that replay t
 
 ```sh
 # free checks only (catalog, schemas, --dry-run; 0 USD)
-set -a; . ./.env; set +a; FAL_E2E=1 go test -tags live -run TestLiveFree ./internal/cli/ -v
+set -a; . ./.env; set +a; FAL_E2E=1 go test -tags live -run TestLiveFree -timeout 20m ./internal/cli/ -v
 # paid smoke tests; FAL_E2E_BUDGET caps the USD spent in one run (default 2)
-set -a; . ./.env; set +a; FAL_E2E=1 FAL_E2E_BUDGET=2 go test -tags live -run TestLivePaid -p 1 ./internal/cli/ -v
+set -a; . ./.env; set +a; FAL_E2E=1 FAL_E2E_BUDGET=2 go test -tags live -run TestLivePaid -timeout 40m -p 1 ./internal/cli/ -v
 ```
 
 Releasing: push a tag `vX.Y.Z`. The release workflow runs goreleaser and publishes the archives and `checksums.txt` to GitHub Releases.

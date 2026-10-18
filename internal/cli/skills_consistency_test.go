@@ -225,3 +225,23 @@ func TestReadmeMentionsOnlyRealCommands(t *testing.T) {
 		t.Errorf("README.md: %v", got)
 	}
 }
+
+// TestReadmeLiveCommandsCarryTimeout: live runs exceed go test's 10m default.
+func TestReadmeLiveCommandsCarryTimeout(t *testing.T) {
+	b, err := os.ReadFile("../../README.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	n := 0
+	for _, line := range strings.Split(string(b), "\n") {
+		if strings.Contains(line, "-tags live") {
+			n++
+			if !strings.Contains(line, "-timeout") {
+				t.Errorf("live command without -timeout: %q", line)
+			}
+		}
+	}
+	if n == 0 {
+		t.Fatal("README has no live test command")
+	}
+}

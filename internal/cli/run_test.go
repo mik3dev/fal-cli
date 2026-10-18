@@ -35,6 +35,8 @@ func newFal(t *testing.T) *fal {
 		defer f.mu.Unlock()
 		p := r.URL.Path
 		switch {
+		case p == "/api/openapi/queue/openapi.json" && r.URL.Query().Get("endpoint_id") == "fal-ai/fake/mask":
+			_, _ = w.Write([]byte(maskOpenAPI))
 		case p == "/api/openapi/queue/openapi.json":
 			id := strings.ReplaceAll(r.URL.Query().Get("endpoint_id"), "/", "__")
 			b, err := os.ReadFile("../../testdata/live/schemas/" + id + ".json")
@@ -79,6 +81,14 @@ func newFal(t *testing.T) *fal {
 	f.result = `{"images":[{"url":"` + f.srv.URL + `/cdn/a.jpeg","content_type":"image/jpeg","width":1,"height":1}],"seed":7,"prompt":"x"}`
 	return f
 }
+
+// maskOpenAPI is a minimal queue document whose file field has no _url suffix.
+const maskOpenAPI = `{"openapi":"3.0.4","info":{"title":"mask","x-fal-metadata":{"category":"image-to-image"}},
+"paths":{"/fal-ai/fake/mask":{"post":{"requestBody":{"content":{"application/json":{"schema":{"$ref":"#/components/schemas/MaskInput"}}}}}},
+"/fal-ai/fake/mask/requests/{request_id}":{"get":{"responses":{"200":{"content":{"application/json":{"schema":{"$ref":"#/components/schemas/MaskOutput"}}}}}}}},
+"components":{"schemas":{
+"MaskInput":{"type":"object","required":["prompt"],"properties":{"prompt":{"type":"string"},"mask":{"type":"string","ui":{"field":"image"}}}},
+"MaskOutput":{"type":"object","properties":{"image":{"type":"object","properties":{"url":{"type":"string"},"content_type":{"type":"string"}}}}}}}}`
 
 type sleeps struct {
 	mu   sync.Mutex
@@ -155,12 +165,13 @@ func TestRunDryRunNoSubmitNoUpload(t *testing.T) {
 	f := newFal(t)
 	png := filepath.Join(t.TempDir(), "x.png")
 	_ = os.WriteFile(png, []byte("P"), 0o600)
-	code, m, _, _ := runFal(t, f, filepath.Join(t.TempDir(), "h"), "run", "fal-ai/flux/schnell", "-p", "prompt=fox", "-p", "image_url="+png, "-p", "seed=3", "--dry-run")
-	if code != 0 || m["dryRun"] != true || m["model"] != "fal-ai/flux/schnell" {
+	code, m, _, _ := runFal(t, f, filepath.Join(t.TempDir(), "h"), "run", "fal-ai/nano-banana-2/edit", "-p", "prompt=fox", "-p", "image_urls="+png, "-p", "seed=3", "--dry-run")
+	if code != 0 || m["dryRun"] != true || m["model"] != "fal-ai/nano-banana-2/edit" {
 		t.Fatalf("code=%d m=%v", code, m)
 	}
 	in, _ := m["input"].(map[string]any)
-	if in["prompt"] != "fox" || in["seed"] != 3.0 || in["image_url"] != png {
+	urls, _ := in["image_urls"].([]any)
+	if in["prompt"] != "fox" || in["seed"] != 3.0 || len(urls) != 1 || urls[0] != png {
 		t.Fatalf("input = %v", in)
 	}
 	pend, _ := m["pendingUploads"].([]any)
@@ -191,7 +202,7 @@ func TestRunUploadsLocalImage(t *testing.T) {
 	f := newFal(t)
 	png := filepath.Join(t.TempDir(), "x.png")
 	_ = os.WriteFile(png, []byte("P"), 0o600)
-	code, m, _, _ := runFal(t, f, filepath.Join(t.TempDir(), "h"), "run", "fal-ai/flux/schnell", "-p", "prompt=fox", "-p", "image_url="+png, "--no-wait")
+	code, m, _, _ := runFal(t, f, filepath.Join(t.TempDir(), "h"), "run", "fal-ai/kling-video/v2.5-turbo/pro/image-to-video", "-p", "prompt=fox", "-p", "image_url="+png, "--no-wait")
 	if code != 0 || f.uploads != 1 || f.submits[0]["image_url"] != "https://v3.fal.media/files/up.png" {
 		t.Fatalf("code=%d m=%v submits=%v", code, m, f.submits)
 	}
@@ -202,7 +213,7 @@ func TestRunUploadsLocalImage(t *testing.T) {
 
 func TestRunRepeatedParamBuildsArray(t *testing.T) {
 	f := newFal(t)
-	code, m, _, _ := runFal(t, f, filepath.Join(t.TempDir(), "h"), "run", "fal-ai/flux/schnell", "-p", "prompt=fox", "-p", "image_urls=https://a/1.png", "-p", "image_urls=https://a/2.png", "--dry-run")
+	code, m, _, _ := runFal(t, f, filepath.Join(t.TempDir(), "h"), "run", "fal-ai/nano-banana-2/edit", "-p", "prompt=fox", "-p", "image_urls=https://a/1.png", "-p", "image_urls=https://a/2.png", "--dry-run")
 	in, _ := m["input"].(map[string]any)
 	arr, _ := in["image_urls"].([]any)
 	if code != 0 || len(arr) != 2 || arr[1] != "https://a/2.png" {
@@ -216,7 +227,7 @@ func TestRunInputFileAndParamOverride(t *testing.T) {
 	_ = os.WriteFile(in, []byte(`{"prompt":"from file","seed":1}`), 0o600)
 	code, m, errOut, _ := runFal(t, f, filepath.Join(t.TempDir(), "h"), "run", "fal-ai/flux/schnell", "--input", in, "-p", "seed=9", "--dry-run", "--no-validate")
 	got, _ := m["input"].(map[string]any)
-	if code != 0 || got["prompt"] != "from file" || got["seed"] != 9.0 || !strings.Contains(errOut, "no-validate") {
+	if code != 0 || got["prompt"] != "from file" || got["seed"] != 9.0 || strings.Contains(errOut, "warning") {
 		t.Fatalf("code=%d m=%v err=%q", code, m, errOut)
 	}
 }
@@ -317,5 +328,113 @@ func TestRunTransientPollErrorKeepsSubmitted(t *testing.T) {
 	runFal(t, f2, home2, "run", "fal-ai/flux/schnell", "-p", "prompt=fox", "--timeout", "3s")
 	if le, _ := ledger.Find(filepath.Join(home2, "tasks.jsonl"), "req-1"); le.State != "timeout" {
 		t.Fatalf("timeout ledger = %+v", le)
+	}
+}
+
+func TestRunCoercesTypedParams(t *testing.T) {
+	f := newFal(t)
+	code, m, _, _ := runFal(t, f, filepath.Join(t.TempDir(), "h"), "run", "fal-ai/flux/schnell", "-p", "prompt=fox", "-p", "seed=5", "-p", "enable_safety_checker=false", "-p", "image_size=landscape_4_3", "-p", "num_images=2", "--no-wait")
+	if code != 0 {
+		t.Fatalf("code=%d m=%v", code, m)
+	}
+	b := f.submits[0]
+	if b["seed"] != 5.0 || b["enable_safety_checker"] != false || b["image_size"] != "landscape_4_3" || b["num_images"] != 2.0 {
+		t.Fatalf("body = %v", b)
+	}
+}
+
+func TestRunObjectParamJSON(t *testing.T) {
+	f := newFal(t)
+	code, m, _, _ := runFal(t, f, filepath.Join(t.TempDir(), "h"), "run", "fal-ai/flux/schnell", "-p", "prompt=fox", "-p", `image_size={"width":512,"height":512}`, "--dry-run")
+	in, _ := m["input"].(map[string]any)
+	size, _ := in["image_size"].(map[string]any)
+	if code != 0 || size["width"] != 512.0 {
+		t.Fatalf("code=%d m=%v", code, m)
+	}
+}
+
+func TestRunValidationErrorExit2(t *testing.T) {
+	f := newFal(t)
+	png := filepath.Join(t.TempDir(), "x.png")
+	_ = os.WriteFile(png, []byte("P"), 0o600)
+	code, m, _, _ := runFal(t, f, filepath.Join(t.TempDir(), "h"), "run", "fal-ai/flux/schnell", "-p", "prompt=fox", "-p", "num_images=99", "-p", "image_urls="+png, "--no-validate", "--dry-run")
+	if code != 0 || f.uploads != 0 {
+		t.Fatalf("no-validate dry-run: code=%d uploads=%d", code, f.uploads)
+	}
+	code, m, _, _ = runFal(t, f, filepath.Join(t.TempDir(), "h"), "run", "fal-ai/flux/schnell", "-p", "prompt=fox", "-p", "num_images=99")
+	e, _ := m["error"].(map[string]any)
+	details, _ := e["details"].(map[string]any)
+	probs, _ := details["problems"].([]any)
+	msg, _ := e["message"].(string)
+	if code != 2 || e["code"] != "validation" || len(probs) == 0 || !strings.Contains(msg, "--no-validate") {
+		t.Fatalf("code=%d m=%v", code, m)
+	}
+	p0 := probs[0].(map[string]any)
+	if p0["field"] != "num_images" || p0["got"] != 99.0 {
+		t.Fatalf("problem = %v", p0)
+	}
+	if len(f.submits) != 0 || f.uploads != 0 {
+		t.Fatalf("submits=%d uploads=%d", len(f.submits), f.uploads)
+	}
+}
+
+func TestRunUnknownFieldIsValidation(t *testing.T) {
+	f := newFal(t)
+	code, m, _, _ := runFal(t, f, filepath.Join(t.TempDir(), "h"), "run", "fal-ai/flux/schnell", "-p", "promt=fox")
+	e, _ := m["error"].(map[string]any)
+	details, _ := e["details"].(map[string]any)
+	probs, _ := details["problems"].([]any)
+	fields := map[string]bool{}
+	for _, p := range probs {
+		fields[p.(map[string]any)["field"].(string)] = true
+	}
+	if code != 2 || !fields["promt"] || !fields["prompt"] {
+		t.Fatalf("code=%d m=%v", code, m)
+	}
+}
+
+func TestRunNoValidateSendsWithWarning(t *testing.T) {
+	f := newFal(t)
+	code, m, errOut, _ := runFal(t, f, filepath.Join(t.TempDir(), "h"), "run", "fal-ai/flux/schnell", "-p", "prompt=fox", "-p", "num_images=99", "--no-validate", "--no-wait")
+	if code != 0 || f.submits[0]["num_images"] != 99.0 || !strings.Contains(errOut, "warning: validation: num_images") {
+		t.Fatalf("code=%d m=%v err=%q", code, m, errOut)
+	}
+}
+
+func TestRunDryRunReportsProblemsUnderNoValidate(t *testing.T) {
+	f := newFal(t)
+	code, m, _, _ := runFal(t, f, filepath.Join(t.TempDir(), "h"), "run", "fal-ai/flux/schnell", "-p", "prompt=fox", "-p", "num_images=99", "--dry-run", "--no-validate")
+	probs, _ := m["problems"].([]any)
+	if code != 0 || len(probs) != 1 {
+		t.Fatalf("code=%d m=%v", code, m)
+	}
+	code, m, _, _ = runFal(t, f, filepath.Join(t.TempDir(), "h"), "run", "fal-ai/flux/schnell", "-p", "prompt=fox", "-p", "num_images=99", "--dry-run")
+	if code != 2 {
+		t.Fatalf("code=%d m=%v", code, m)
+	}
+}
+
+func TestRunUploadsUIFieldFile(t *testing.T) {
+	f := newFal(t)
+	png := filepath.Join(t.TempDir(), "m.png")
+	_ = os.WriteFile(png, []byte("P"), 0o600)
+	code, m, _, _ := runFal(t, f, filepath.Join(t.TempDir(), "h"), "run", "fal-ai/fake/mask", "-p", "prompt=x", "-p", "mask="+png, "--no-wait")
+	if code != 0 || f.uploads != 1 || f.submits[0]["mask"] != "https://v3.fal.media/files/up.png" {
+		t.Fatalf("code=%d m=%v submits=%v", code, m, f.submits)
+	}
+	code, m, _, _ = runFal(t, f, filepath.Join(t.TempDir(), "h"), "run", "fal-ai/fake/mask", "-p", "prompt=x", "-p", "mask="+png, "--dry-run")
+	pend, _ := m["pendingUploads"].([]any)
+	if code != 0 || len(pend) != 1 || pend[0] != png {
+		t.Fatalf("dry-run: code=%d m=%v", code, m)
+	}
+}
+
+func TestRunPromptPathNeverUploaded(t *testing.T) {
+	f := newFal(t)
+	txt := filepath.Join(t.TempDir(), "README.md")
+	_ = os.WriteFile(txt, []byte("hi"), 0o600)
+	code, m, _, _ := runFal(t, f, filepath.Join(t.TempDir(), "h"), "run", "fal-ai/flux/schnell", "-p", "prompt="+txt, "--no-wait")
+	if code != 0 || f.uploads != 0 || f.submits[0]["prompt"] != txt {
+		t.Fatalf("code=%d m=%v submits=%v", code, m, f.submits)
 	}
 }

@@ -47,7 +47,7 @@ func newRunCmd(deps Deps) *cobra.Command {
 	addFinishFlags(cmd)
 	f.Bool("no-wait", false, "submit and return the requestId without waiting")
 	f.Bool("dry-run", false, "print the request body and price without uploading or submitting")
-	f.Bool("no-validate", false, "accepted for compatibility; schema validation arrives in a later release")
+	f.Bool("no-validate", false, "send even if the input does not match the schema (problems become warnings)")
 	return cmd
 }
 
@@ -70,21 +70,18 @@ func runModel(cmd *cobra.Command, deps Deps, endpoint string) error {
 		return err
 	}
 	warn := warnWriter(cmd, deps)
-	if nv, _ := flags.GetBool("no-validate"); nv {
-		_, _ = fmt.Fprintln(warn, "warning: --no-validate is ignored; input validation is not implemented yet")
-	}
 	doc, err := schema.Fetch(cmd.Context(), c, paths.Cache, endpoint, false, deps.Now())
 	if err != nil {
 		return err
 	}
-	input, err := buildInput(cmd, deps)
+	prep, err := prepareInput(cmd, deps, doc, endpoint, warn)
 	if err != nil {
 		return err
 	}
 	if dry, _ := flags.GetBool("dry-run"); dry {
-		return emitDryRun(cmd, deps, c, paths, endpoint, input, warn)
+		return emitDryRun(cmd, deps, c, paths, endpoint, prep, warn)
 	}
-	input, uploaded, err := upload.Resolve(cmd.Context(), c, input, upload.IsFileKey, fileExists)
+	input, uploaded, err := upload.Resolve(cmd.Context(), c, prep.input, prep.isFile, fileExists)
 	if err != nil {
 		return err
 	}
@@ -109,11 +106,73 @@ func runModel(cmd *cobra.Command, deps Deps, endpoint string) error {
 	return finish(cmd, deps, c, paths, finishArgs{id: id, endpoint: endpoint, outDir: outDir, timeout: timeout, createdAt: now, uploaded: uploaded})
 }
 
+const maxGotRunes = 100
+
+// preparedInput is the coerced input plus what validation and --dry-run need.
+type preparedInput struct {
+	input    map[string]any
+	isFile   func(string) bool
+	problems []schema.Problem // only set under --no-validate
+}
+
+// prepareInput builds, coerces and validates the input without any network
+// access. Invalid input is a validation error unless --no-validate is set.
+func prepareInput(cmd *cobra.Command, deps Deps, doc schema.Doc, endpoint string, warn io.Writer) (preparedInput, error) {
+	sch := doc.Input
+	raw, err := buildInput(cmd, deps, sch)
+	if err != nil {
+		return preparedInput{}, err
+	}
+	p := preparedInput{input: schema.Coerce(sch, raw), isFile: func(k string) bool { return upload.SchemaFileKey(sch, k) }}
+	problems, err := schema.Validate(sch, p.input)
+	if err != nil {
+		_, _ = fmt.Fprintf(warn, "warning: cannot validate the input (%v); sending without validation\n", err)
+		return p, nil
+	}
+	problems = capGot(problems)
+	if len(problems) == 0 {
+		return p, nil
+	}
+	if noValidate, _ := cmd.Flags().GetBool("no-validate"); !noValidate {
+		return p, &output.Error{
+			Code:    output.CodeValidation,
+			Message: fmt.Sprintf("input does not match the schema of %s (%s); fix the fields, or use --no-validate if the schema is wrong", endpoint, problemCount(len(problems))),
+			Details: map[string]any{"problems": problems},
+		}
+	}
+	for _, pr := range problems {
+		_, _ = fmt.Fprintf(warn, "warning: validation: %s: %s\n", pr.Field, pr.Message)
+	}
+	p.problems = problems
+	return p, nil
+}
+
+func problemCount(n int) string {
+	if n == 1 {
+		return "1 problem"
+	}
+	return fmt.Sprintf("%d problems", n)
+}
+
+// capGot returns a copy of problems with string "got" values cut to maxGotRunes runes.
+func capGot(problems []schema.Problem) []schema.Problem {
+	out := make([]schema.Problem, len(problems))
+	for i, pr := range problems {
+		if s, ok := pr.Got.(string); ok {
+			if r := []rune(s); len(r) > maxGotRunes {
+				pr.Got = string(r[:maxGotRunes])
+			}
+		}
+		out[i] = pr
+	}
+	return out
+}
+
 // buildInput merges --input and the -p values (later wins). Plain -p values
-// are typed by guess (numbers, booleans, JSON); @file contents and --input
-// values stay as they are.
-// ponytail: stage 2 replaces the guess with schema-driven coercion and validation.
-func buildInput(cmd *cobra.Command, deps Deps) (map[string]any, error) {
+// for keys the schema does not declare are typed by guess (numbers, booleans,
+// JSON); declared keys are left for schema.Coerce; @file contents and
+// --input values stay as they are.
+func buildInput(cmd *cobra.Command, deps Deps, sch map[string]any) (map[string]any, error) {
 	flags := cmd.Flags()
 	var base map[string]any
 	if path, _ := flags.GetString("input"); path != "" {
@@ -136,13 +195,16 @@ func buildInput(cmd *cobra.Command, deps Deps) (map[string]any, error) {
 	if err != nil {
 		return nil, err
 	}
-	plain := map[string]any{}
+	undeclared := map[string]any{}
 	for k, v := range tagged {
-		if _, isFile := v.(fileText); !isFile {
-			plain[k] = v
+		if _, isFile := v.(fileText); isFile {
+			continue
+		}
+		if _, declared := schema.PropSchema(sch, k); !declared {
+			undeclared[k] = v
 		}
 	}
-	over := unwrapFileValues(MergeInput(tagged, schema.GuessLiterals(plain)))
+	over := unwrapFileValues(MergeInput(tagged, schema.GuessLiterals(undeclared)))
 	return MergeInput(base, over), nil
 }
 
@@ -152,10 +214,10 @@ func fileExists(p string) bool {
 }
 
 // pendingUploads lists the local files that a real run would upload.
-func pendingUploads(input map[string]any) []string {
+func pendingUploads(input map[string]any, isFile func(string) bool) []string {
 	out := []string{}
 	for k, v := range input {
-		if !upload.IsFileKey(k) {
+		if !isFile(k) {
 			continue
 		}
 		items, ok := v.([]any)
@@ -173,8 +235,11 @@ func pendingUploads(input map[string]any) []string {
 }
 
 // emitDryRun prints the request that would be sent; nothing is uploaded or submitted.
-func emitDryRun(cmd *cobra.Command, deps Deps, c *api.Client, paths config.Paths, endpoint string, input map[string]any, warn io.Writer) error {
-	out := map[string]any{"dryRun": true, "model": endpoint, "input": input, "pendingUploads": pendingUploads(input), "price": nil}
+func emitDryRun(cmd *cobra.Command, deps Deps, c *api.Client, paths config.Paths, endpoint string, p preparedInput, warn io.Writer) error {
+	out := map[string]any{"dryRun": true, "model": endpoint, "input": p.input, "pendingUploads": pendingUploads(p.input, p.isFile), "price": nil}
+	if len(p.problems) > 0 {
+		out["problems"] = p.problems
+	}
 	svc := &catalog.Service{Client: c, CacheDir: paths.Cache, Now: deps.Now}
 	if p, err := svc.Price(cmd.Context(), endpoint); err != nil {
 		_, _ = fmt.Fprintf(warn, "warning: could not get the price (%v)\n", err)

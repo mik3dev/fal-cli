@@ -72,7 +72,7 @@ func Submit(ctx context.Context, c *api.Client, ledgerPath, endpoint string, inp
 	case !sentOrServerError(err):
 		return "", err
 	}
-	if id, ok := recoverUncertain(ctx, c, endpoint, now); ok {
+	if id, ok := recoverUncertain(ctx, c, ledgerPath, endpoint, now); ok {
 		record(ledgerPath, ledger.Entry{RequestID: id, Endpoint: endpoint, State: LedgerSubmitted, OutDir: outDir, CreatedAt: now, Note: "recovered from request history after: " + err.Error()}, warn)
 		return id, nil
 	}
@@ -102,8 +102,9 @@ func record(path string, e ledger.Entry, warn io.Writer) {
 }
 
 // recoverUncertain adopts the single request of endpoint sent at or after
-// since minus skewTolerance, per the platform history. Query errors mean "not recovered".
-func recoverUncertain(ctx context.Context, c *api.Client, endpoint string, since time.Time) (string, bool) {
+// since minus skewTolerance, per the platform history. Requests this CLI
+// already recorded in the ledger are never candidates. Query errors mean "not recovered".
+func recoverUncertain(ctx context.Context, c *api.Client, ledgerPath, endpoint string, since time.Time) (string, bool) {
 	since = since.Add(-skewTolerance)
 	var res struct {
 		Items []struct {
@@ -119,6 +120,9 @@ func recoverUncertain(ctx context.Context, c *api.Client, endpoint string, since
 	for _, it := range res.Items {
 		sent, err := time.Parse(time.RFC3339Nano, it.SentAt)
 		if err != nil || sent.Before(since) {
+			continue
+		}
+		if _, known := ledger.Find(ledgerPath, it.RequestID); known {
 			continue
 		}
 		found = append(found, it.RequestID)
@@ -178,7 +182,7 @@ func errorText(v any) string {
 }
 
 // GetResult fetches the final payload. Gone results and model failures are task_failed.
-// A 2xx whose body does not decode stays an api error (retryable).
+// A 2xx whose body does not decode stays an api error (retry with task wait).
 func GetResult(ctx context.Context, c *api.Client, endpoint, id string) (json.RawMessage, error) {
 	var raw json.RawMessage
 	if _, err := c.Do(ctx, api.Request{Method: http.MethodGet, Path: reqPath(endpoint, id, ""), Host: api.HostQueue}, &raw); err != nil {

@@ -83,8 +83,11 @@ func newTaskGetCmd(deps Deps) *cobra.Command {
 				out["queuePosition"] = s.QueuePosition
 			}
 			if s.State == task.StateCompleted && s.Error != "" {
-				out["error"], out["errorType"] = s.Error, s.ErrorType
-				return output.Success(deps.Stdout, out)
+				details := map[string]any{"requestId": args[0], "state": s.State}
+				if s.ErrorType != "" {
+					details["errorType"] = s.ErrorType
+				}
+				return &output.Error{Code: output.CodeTaskFailed, Message: fmt.Sprintf("request %s failed: %s", args[0], s.Error), Details: details}
 			}
 			if s.State == task.StateCompleted {
 				raw, err := task.GetResult(cmd.Context(), c, endpoint, args[0])

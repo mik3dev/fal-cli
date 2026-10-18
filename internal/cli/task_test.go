@@ -123,10 +123,12 @@ func TestTaskGetCompletedWithErrorSkipsResult(t *testing.T) {
 	}))
 	t.Cleanup(srv.Close)
 	code, m, _ := run(t, apiEnv(srv), "task", "get", "req-1", "--model", "fal-ai/flux/schnell")
-	if code != 0 || m["state"] != "COMPLETED" || m["error"] != "nsfw" || m["errorType"] != "content_policy_violation" {
+	e, _ := m["error"].(map[string]any)
+	d, _ := e["details"].(map[string]any)
+	if code != 5 || e["code"] != "task_failed" || !strings.Contains(e["message"].(string), "nsfw") || d["requestId"] != "req-1" || d["errorType"] != "content_policy_violation" || d["state"] != "COMPLETED" {
 		t.Fatalf("code=%d m=%v", code, m)
 	}
-	if _, has := m["result"]; has || resultCalls.Load() != 0 {
+	if resultCalls.Load() != 0 {
 		t.Fatalf("result fetched: calls=%d m=%v", resultCalls.Load(), m)
 	}
 }

@@ -360,3 +360,15 @@ func TestGetResultBadJSONIsAPIError(t *testing.T) {
 		t.Fatalf("must not be an output error: %+v", oe)
 	}
 }
+
+func TestRecoverUncertainSkipsRequestsAlreadyInLedger(t *testing.T) {
+	q := &queue{submit: []func(http.ResponseWriter){code(500, "boom")}, history: `{"items":[{"request_id":"prev","endpoint_id":"fal-ai/flux/schnell","sent_at":"2026-10-18T11:59:40Z"}]}`}
+	c, lp := setup(t, q)
+	if err := ledger.Append(lp, ledger.Entry{RequestID: "prev", Endpoint: ep, State: "submitted", CreatedAt: t0.Add(-20 * time.Second)}); err != nil {
+		t.Fatal(err)
+	}
+	_, err := task.Submit(context.Background(), c, lp, ep, map[string]any{"prompt": "cat"}, "", t0, nil)
+	if asOut(t, err).Code != output.CodeSubmitUncertain {
+		t.Fatalf("adopted a request this CLI already recorded: err = %v", err)
+	}
+}

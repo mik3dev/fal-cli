@@ -20,7 +20,7 @@ type Media struct {
 }
 
 // Extract walks the payload depth-first and collects every File-shaped object
-// ({url,  plus any of content_type, file_name, file_size, width, height}) and every fal-hosted https string under a
+// ({url} plus any of content_type, file_name, file_size, width, height}) and every fal-hosted https string under a
 // *_url / *_urls key. Order of appearance; one entry per URL.
 func Extract(payload json.RawMessage) []Media {
 	root, err := decodeOrdered(payload)

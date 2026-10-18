@@ -47,7 +47,8 @@ func checkInvocation(root *cobra.Command, tokens []string) []string {
 	walking := true
 	for _, tok := range tokens {
 		switch {
-		case strings.HasPrefix(tok, "-"):
+		case strings.HasPrefix(strings.TrimLeft(tok, "["), "-"):
+			tok = strings.TrimRight(strings.TrimLeft(tok, "["), "]")
 			walking = false
 			if p := checkFlag(cmd, tok); p != "" {
 				problems = append(problems, p)
@@ -98,6 +99,7 @@ func TestCheckSkillTextCatchesBadRefs(t *testing.T) {
 		"`fal-cli nope`",
 		"fal-cli models nope --refresh",
 		"`fal-cli run -z`",
+		"`fal-cli task list [--limt 3]`",
 	}
 	for _, text := range bad {
 		if got := checkSkillText(root, text); len(got) != 1 {
@@ -192,5 +194,23 @@ func TestSkillHasNoFallbackSection(t *testing.T) {
 		if strings.Contains(low, "fallback") || strings.Contains(low, "kie-cli") || strings.Contains(low, "kie.ai") {
 			t.Errorf("%s mentions fallback or kie: the agent decides, not the skill", p)
 		}
+	}
+}
+
+// TestSkillDocsStateVerifiedFacts pins claims the final review found wrong against the fixtures.
+func TestSkillDocsStateVerifiedFacts(t *testing.T) {
+	docs := skillDocs(t)
+	audio := docs["skills/fal-generate/references/audio.md"]
+	for _, line := range strings.Split(audio, "\n") {
+		if strings.Contains(line, "sam-audio/separate") && (!strings.Contains(line, "prompt") || !strings.Contains(line, "residual")) {
+			t.Errorf("sam-audio/separate needs prompt and returns target/residual: %q", line)
+		}
+	}
+	skill := docs["skills/fal-generate/SKILL.md"]
+	if !strings.Contains(skill, "per megapixel") {
+		t.Error("SKILL.md must price flux schnell per megapixel")
+	}
+	if !strings.Contains(skill, "image-to-3d") {
+		t.Error("SKILL.md must list every hidden category")
 	}
 }

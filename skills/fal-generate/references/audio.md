@@ -24,7 +24,8 @@ MiniMax Music 2.6 (`fal-ai/minimax-music/v2.6`, 0.15 USD per track):
 ## Sound effects and processing
 
 - `fal-ai/elevenlabs/sound-effects/v2`: `text` describing the sound, optional duration field (see schema).
-- Stems: `fal-ai/demucs` and `fal-ai/sam-audio/separate` take `audio_url` (a local file is uploaded) and return several files (`vocals`, `drums`, `bass`, ...). `files` lists all of them in document order and `ids` has `vocals_url`, `drums_url`, ... for chaining.
+- Stems: `fal-ai/demucs` takes `audio_url` (a local file is uploaded) and returns several files (`vocals`, `drums`, `bass`, ...). `files` lists all of them in document order and `ids` has `vocals_url`, `drums_url`, ... for chaining.
+- Isolate one sound: `fal-ai/sam-audio/separate` needs `audio_url` and a `prompt` describing the sound to isolate; it returns `target` (the isolated sound) and `residual` (`ids.target_url`, `ids.residual_url`).
 - Voice changer, audio isolation: `fal-ai/elevenlabs/voice-changer`, `fal-ai/elevenlabs/audio-isolation` take `audio_url`.
 
 ## Chaining

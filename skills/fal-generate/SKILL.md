@@ -35,7 +35,7 @@ Presets are named model + default params. `fal-cli preset list` shows them (`nam
 
 | preset | model | pass |
 |---|---|---|
-| `imagen-rapida` | fal-ai/flux/schnell (about 0.003 USD per image) | `prompt` |
+| `imagen-rapida` | fal-ai/flux/schnell (0.003 USD per megapixel, about 0.003 per 1024x1024 image) | `prompt` |
 | `imagen-calidad` | fal-ai/nano-banana-pro (0.15 USD per image) | `prompt` |
 | `imagen-edicion` | fal-ai/nano-banana-2/edit (0.08 USD per image) | `prompt`, `image_urls` |
 | `video-calidad` | Kling 2.5 turbo pro text-to-video, 5 s (about 0.35 USD) | `prompt` |
@@ -71,7 +71,7 @@ Special cases:
 - Chain with `ids` and `files`, not with guessed values: a follow-up run takes `images_url` / `video_url` / a local `files[].path` from the previous output.
 - Always set `--out` to a directory the user expects; report the paths you produced.
 - Durations and some counts are strings in several schemas (`duration: "5"`). Trust the schema.
-- LLM, vision and speech-to-text endpoints are hidden from `models list` unless you ask for their `--category`.
+- Non-media categories (`llm`, `vision`, `speech-to-text`, `image-to-3d`, `json`, `video-to-text`) are hidden from `models list`/`search` unless you ask for them with `--category`.
 
 ## Errors
 

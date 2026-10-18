@@ -226,12 +226,16 @@ func finish(cmd *cobra.Command, deps Deps, c *api.Client, paths config.Paths, a 
 	w := task.Waiter{Sleep: deps.Sleep, Now: deps.Now, Progress: warn}
 	st, err := w.Wait(cmd.Context(), c, a.endpoint, a.id, a.timeout)
 	if err != nil {
-		recordFinal(paths, a, finalState(err), st.Error, warn)
+		if state := finalState(err); state != "" {
+			recordFinal(paths, a, state, st.Error, warn)
+		}
 		return withRequestID(err, a.id, nil)
 	}
 	raw, err := task.GetResult(cmd.Context(), c, a.endpoint, a.id)
 	if err != nil {
-		recordFinal(paths, a, finalState(err), "", warn)
+		if state := finalState(err); state != "" {
+			recordFinal(paths, a, state, "", warn)
+		}
 		return withRequestID(err, a.id, nil)
 	}
 	recordFinal(paths, a, task.LedgerSuccess, "", warn)
@@ -249,13 +253,21 @@ func finish(cmd *cobra.Command, deps Deps, c *api.Client, paths config.Paths, a 
 	})
 }
 
-// finalState maps a wait/result error to the ledger state.
+// finalState maps a wait/result error to the ledger state. Transient errors
+// (network, 5xx, rate limit) return "" and leave the ledger at submitted: the
+// paid request may still be running on fal.
 func finalState(err error) string {
 	var oe *output.Error
-	if errors.As(err, &oe) && oe.Code == output.CodeTimeout {
-		return "timeout"
+	if !errors.As(err, &oe) {
+		return ""
 	}
-	return task.LedgerFail
+	switch oe.Code {
+	case output.CodeTimeout:
+		return "timeout"
+	case output.CodeTaskFailed:
+		return task.LedgerFail
+	}
+	return ""
 }
 
 // recordFinal appends the final state; failures only warn (the result is already known).

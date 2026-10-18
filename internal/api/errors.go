@@ -25,7 +25,9 @@ type Error struct {
 	Message   string
 	Problems  []Problem // model-level 422 details
 	ErrorType string    // request-level error_type (runner_..., request_timeout...)
-	Raw       json.RawMessage
+	// NeedsRetry is set from the X-Fal-Needs-Retry header: fal states no request was created.
+	NeedsRetry bool
+	Raw        json.RawMessage
 }
 
 func (e *Error) Error() string {
@@ -43,16 +45,16 @@ func (e *Error) IsNotFound() bool { return e.Status == http.StatusNotFound }
 func (e *Error) AsOutput() *output.Error {
 	code := output.CodeAPI
 	lower := strings.ToLower(e.Message)
+	outOfMoney := strings.Contains(lower, "balance") || strings.Contains(lower, "credit") || strings.Contains(lower, "locked")
 	switch {
-	case e.Status == 401 || e.Status == 403 || e.Type == "authorization_error":
-		code = output.CodeAuth
-		if strings.Contains(lower, "balance") || strings.Contains(lower, "credit") || strings.Contains(lower, "locked") {
-			code = output.CodeCredits
-		}
 	case e.Status == 422:
 		code = output.CodeValidation
 	case e.Status == 429 || e.Type == "rate_limited":
 		code = output.CodeRateLimit
+	case outOfMoney:
+		code = output.CodeCredits
+	case e.Status == 401 || e.Status == 403 || e.Type == "authorization_error":
+		code = output.CodeAuth
 	}
 	details := map[string]any{"status": e.Status}
 	if e.Type != "" {
@@ -81,6 +83,9 @@ func (e *NetError) Unwrap() error { return e.Err }
 // fal shapes: {"error":{type,message}}, {"detail":[...]} and {"detail":"...","error_type":"..."}.
 func decodeError(status int, header http.Header, raw []byte) *Error {
 	e := &Error{Status: status, Raw: json.RawMessage(raw), ErrorType: header.Get("X-Fal-Error-Type")}
+	if v := strings.ToLower(header.Get("X-Fal-Needs-Retry")); v == "true" || v == "1" {
+		e.NeedsRetry = true
+	}
 	var body struct {
 		Error *struct {
 			Type    string `json:"type"`

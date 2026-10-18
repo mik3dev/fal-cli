@@ -83,14 +83,19 @@ func put(ctx context.Context, c *api.Client, uploadURL, ct, path string, size in
 	defer func() { _ = resp.Body.Close() }()
 	body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
 	if resp.StatusCode < 200 || resp.StatusCode > 299 {
-		return &api.Error{Status: resp.StatusCode, Message: fmt.Sprintf("upload of %s rejected: %s", filepath.Base(path), strings.TrimSpace(string(body)))}
+		return &api.Error{Status: resp.StatusCode, Message: fmt.Sprintf("upload of %s rejected: %s", filepath.Base(path), scrubURL(strings.TrimSpace(string(body)), uploadURL))}
 	}
 	return nil
 }
 
-// scrubURL hides the presigned URL (it carries a signature) from error text.
+// scrubURL hides the presigned URL (it carries a signature) from error text,
+// including its query string on its own (S3/GCS XML errors echo it).
 func scrubURL(msg, u string) string {
-	return strings.ReplaceAll(msg, u, "<upload_url>")
+	msg = strings.ReplaceAll(msg, u, "<upload_url>")
+	if q := strings.Index(u, "?"); q >= 0 {
+		msg = strings.ReplaceAll(msg, u[q:], "?<signature>")
+	}
+	return msg
 }
 
 // Resolve returns a copy of input where every local file named by a *_url /

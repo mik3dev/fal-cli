@@ -369,3 +369,46 @@ func TestNoKeyLeakInProblemsAndErrorType(t *testing.T) {
 		t.Fatalf("leak: %s", b)
 	}
 }
+
+func TestNeedsRetryHeaderRetriesPOST(t *testing.T) {
+	var n atomic.Int32
+	srv := serve(t, func(w http.ResponseWriter, r *http.Request) {
+		if n.Add(1) == 1 {
+			w.Header().Set("X-Fal-Needs-Retry", "true")
+			w.WriteHeader(503)
+			_, _ = w.Write([]byte(`{"detail":"try again"}`))
+			return
+		}
+		_, _ = w.Write([]byte(`{"request_id":"r"}`))
+	})
+	c, _ := newClient(t, srv.URL)
+	var out map[string]any
+	if _, err := c.Do(context.Background(), api.Request{Method: http.MethodPost, Path: "/x", Body: map[string]any{}, Host: api.HostQueue}, &out); err != nil || out["request_id"] != "r" {
+		t.Fatalf("err=%v out=%v", err, out)
+	}
+	if n.Load() != 2 {
+		t.Fatalf("requests = %d", n.Load())
+	}
+	// Without the header a 503 on POST is not retried.
+	var m atomic.Int32
+	srv2 := serve(t, func(w http.ResponseWriter, _ *http.Request) { m.Add(1); w.WriteHeader(503) })
+	c2, _ := newClient(t, srv2.URL)
+	if _, err := c2.Do(context.Background(), api.Request{Method: http.MethodPost, Path: "/x", Body: map[string]any{}, Host: api.HostQueue}, nil); err == nil || m.Load() != 1 {
+		t.Fatalf("err=%v requests=%d", err, m.Load())
+	}
+}
+
+func TestCreditsMessageMapsOnAnyStatus(t *testing.T) {
+	for _, status := range []int{400, 402, 403, 500} {
+		e := &api.Error{Status: status, Message: "Insufficient balance: top up your account"}
+		if got := e.AsOutput().Code; got != output.CodeCredits {
+			t.Errorf("status %d → %s, want credits", status, got)
+		}
+	}
+	if got := (&api.Error{Status: 422, Message: "credit field invalid"}).AsOutput().Code; got != output.CodeValidation {
+		t.Errorf("422 → %s", got)
+	}
+	if got := (&api.Error{Status: 429, Message: "rate limited; buy credits"}).AsOutput().Code; got != output.CodeRateLimit {
+		t.Errorf("429 → %s", got)
+	}
+}

@@ -59,6 +59,10 @@ func newFal(t *testing.T) *fal {
 			if len(f.statuses) > 1 {
 				f.statuses = f.statuses[1:]
 			}
+			if rest, ok := strings.CutPrefix(s, "500:"); ok {
+				w.WriteHeader(500)
+				s = rest
+			}
 			_, _ = w.Write([]byte(s))
 		case r.Method == "POST":
 			var body map[string]any
@@ -292,5 +296,26 @@ func TestTaskWaitDownloadsUsingLedgerEndpoint(t *testing.T) {
 	code, m, _, _ = runFal(t, f, filepath.Join(t.TempDir(), "h2"), "task", "wait", "req-9")
 	if code != 2 || m["error"].(map[string]any)["code"] != "usage" {
 		t.Fatalf("no ledger: code=%d m=%v", code, m)
+	}
+}
+
+func TestRunTransientPollErrorKeepsSubmitted(t *testing.T) {
+	f := newFal(t)
+	f.statuses = []string{`500:boom`}
+	home := filepath.Join(t.TempDir(), "h")
+	code, m, _, _ := runFal(t, f, home, "run", "fal-ai/flux/schnell", "-p", "prompt=fox")
+	e, _ := m["error"].(map[string]any)
+	if code != 1 || e["code"] != "api" || e["details"].(map[string]any)["requestId"] != "req-1" {
+		t.Fatalf("code=%d m=%v", code, m)
+	}
+	if le, _ := ledger.Find(filepath.Join(home, "tasks.jsonl"), "req-1"); le.State != "submitted" {
+		t.Fatalf("ledger = %+v", le)
+	}
+	f2 := newFal(t)
+	f2.statuses = []string{`{"status":"IN_PROGRESS"}`}
+	home2 := filepath.Join(t.TempDir(), "h2")
+	runFal(t, f2, home2, "run", "fal-ai/flux/schnell", "-p", "prompt=fox", "--timeout", "3s")
+	if le, _ := ledger.Find(filepath.Join(home2, "tasks.jsonl"), "req-1"); le.State != "timeout" {
+		t.Fatalf("timeout ledger = %+v", le)
 	}
 }

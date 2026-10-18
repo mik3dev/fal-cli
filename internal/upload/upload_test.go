@@ -132,16 +132,17 @@ func TestOnePutFailureIsAPIError(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == "PUT" {
 			w.WriteHeader(403)
+			_, _ = w.Write([]byte("<Error><Message>denied</Message><Resource>http://" + r.Host + "/put?sig=SECRET</Resource></Error>"))
 			return
 		}
-		_ = json.NewEncoder(w).Encode(map[string]string{"file_url": "https://f", "upload_url": "http://" + r.Host + "/put"})
+		_ = json.NewEncoder(w).Encode(map[string]string{"file_url": "https://f", "upload_url": "http://" + r.Host + "/put?sig=SECRET"})
 	}))
 	t.Cleanup(srv.Close)
 	c := api.New("k", func(string) string { return "" })
 	c.StorageURL = srv.URL
 	_, err := upload.One(context.Background(), c, writeFile(t, "a.png", "x"))
 	var ae *api.Error
-	if !errors.As(err, &ae) || ae.Status != 403 {
+	if !errors.As(err, &ae) || ae.Status != 403 || strings.Contains(ae.Message, "SECRET") || !strings.Contains(ae.Message, "denied") {
 		t.Fatalf("err = %v", err)
 	}
 }

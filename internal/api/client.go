@@ -175,8 +175,9 @@ func (c *Client) limit(ctx context.Context, h Host) error {
 }
 
 // retryable: GET and Retry requests retry on 429, 5xx and any network error.
-// Other requests (submit, upload) retry only on 429 or when the request
-// provably never left (NetError.Sent==false): the request may already exist and cost money.
+// Other requests (submit, upload) retry only on 429, on X-Fal-Needs-Retry
+// (fal states nothing was created) or when the request provably never left
+// (NetError.Sent==false): otherwise the request may already exist and cost money.
 func retryable(r Request, err error) bool {
 	idempotent := r.Method == http.MethodGet || r.Retry
 	var ne *NetError
@@ -185,7 +186,7 @@ func retryable(r Request, err error) bool {
 	}
 	var ae *Error
 	if errors.As(err, &ae) {
-		if ae.Status == 429 {
+		if ae.Status == 429 || ae.NeedsRetry {
 			return true
 		}
 		return idempotent && ae.Status >= 500

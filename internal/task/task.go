@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/mik3dev/fal-cli/internal/api"
@@ -50,8 +51,18 @@ type Status struct {
 	Logs          []string `json:"logs,omitempty"`
 }
 
+// AppID is the owner/app prefix of an endpoint (fal-ai/flux/schnell → fal-ai/flux):
+// the queue routes status, result and cancel under it, not under the full path.
+func AppID(endpoint string) string {
+	parts := strings.SplitN(endpoint, "/", 3)
+	if len(parts) < 2 {
+		return endpoint
+	}
+	return parts[0] + "/" + parts[1]
+}
+
 func reqPath(endpoint, id, suffix string) string {
-	return "/" + endpoint + "/requests/" + id + suffix
+	return "/" + AppID(endpoint) + "/requests/" + id + suffix
 }
 
 // Submit POSTs input to the queue and records the request in the ledger.

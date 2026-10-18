@@ -4,7 +4,7 @@
 
 **Goal:** Binario `fal-cli` que autentica, explora el catálogo vivo de fal.ai, resume schemas, sube archivos locales, envía a la cola, espera, descarga resultados y cancela, con la misma salida JSON y códigos de salida que kie-cli.
 
-**Architecture:** Paquetes pequeños en `internal/` (output, config, api, cache, catalog, schema, ledger, task, upload, result, download) y comandos cobra en `internal/cli/`. Seis paquetes se **copian de kie-cli** (`/Users/miguelacostabravo/Projects/mik3dev/kie-ai-cli/internal/`) y divergen libremente; el resto es nuevo porque la API de fal es distinta (tres hosts, códigos HTTP reales, cola con `request_id`). Cada paquete recibe cliente HTTP, reloj y sleep por parámetro para probarse con `httptest`. Ningún test usa la API real.
+**Architecture:** Paquetes pequeños en `internal/` (output, config, api, cache, catalog, schema, ledger, task, upload, result, download) y comandos cobra en `internal/cli/`. Seis paquetes se **copian de kie-cli** (`../kie-ai-cli/internal/`) y divergen libremente; el resto es nuevo porque la API de fal es distinta (tres hosts, códigos HTTP reales, cola con `request_id`). Cada paquete recibe cliente HTTP, reloj y sleep por parámetro para probarse con `httptest`. Ningún test usa la API real.
 
 **Tech Stack:** Go 1.27, `github.com/spf13/cobra`, `golang.org/x/term`. Resto stdlib.
 

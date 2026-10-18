@@ -1,8 +1,17 @@
+# secrets
 .env
 .env.*
 !.env.example
-.superpowers/
+
+# build and test output
 bin/
+dist/
+*.test
+coverage.out
 fal-output/
 testdata/live/.raw/
+
+# local tooling scratch
+.superpowers/
 .claude/
+.DS_Store

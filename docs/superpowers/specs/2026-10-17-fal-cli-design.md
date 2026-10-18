@@ -4,7 +4,7 @@ Fecha: 2026-10-17 · Estado: aprobado por el dueño (2026-10-17), presupuesto de
 
 ## 1. Intención
 
-CLI en Go (binario único `fal-cli`) para generar **imágenes, videos y audio** con la API de [fal.ai](https://fal.ai), diseñado como **herramienta para agentes de IA**. Es la hermana de `kie-cli` (`/Users/miguelacostabravo/Projects/mik3dev/kie-ai-cli`): misma forma de uso, mismo contrato de salida, mismos códigos de salida y presets con los mismos nombres.
+CLI en Go (binario único `fal-cli`) para generar **imágenes, videos y audio** con la API de [fal.ai](https://fal.ai), diseñado como **herramienta para agentes de IA**. Es la hermana de `kie-cli` (`../kie-ai-cli`): misma forma de uso, mismo contrato de salida, mismos códigos de salida y presets con los mismos nombres.
 
 **Motivo.** kie.ai es más barato, pero tiene mucha demanda y a veces es inestable. fal.ai es el **respaldo**. El agente ejecuta primero `kie-cli`; cuando kie falla o va lento, el agente decide saltar a `fal-cli`. Esa decisión es del agente: ni el CLI ni su skill implementan el fallback. Para que el salto sea barato, `fal-cli` debe sentirse idéntico a `kie-cli`.
 

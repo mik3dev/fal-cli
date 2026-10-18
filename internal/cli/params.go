@@ -1,0 +1,96 @@
+package cli
+
+import (
+	"fmt"
+	"strings"
+
+	"github.com/mik3dev/fal-cli/internal/output"
+)
+
+// ParseParams turns key=value pairs into an input map. Values stay strings
+// (a repeated key gives []any of strings); callers type them afterwards.
+func ParseParams(pairs []string, readFile func(string) ([]byte, error)) (map[string]any, error) {
+	tagged, err := parseTagged(pairs, readFile)
+	if err != nil {
+		return nil, err
+	}
+	return unwrapFileValues(tagged), nil
+}
+
+// fileText is the content of a -p key=@file value; it is never type-guessed.
+type fileText string
+
+// parseTagged is ParseParams keeping @file contents wrapped as fileText.
+func parseTagged(pairs []string, readFile func(string) ([]byte, error)) (map[string]any, error) {
+	out := make(map[string]any, len(pairs))
+	lists := map[string]bool{} // keys whose value is an array built from repeats
+	for _, p := range pairs {
+		k, raw, ok := strings.Cut(p, "=")
+		if !ok || k == "" {
+			return nil, &output.Error{Code: output.CodeUsage, Message: fmt.Sprintf("invalid -p %q: want key=value", p)}
+		}
+		v, err := parseValue(raw, readFile)
+		if err != nil {
+			return nil, err
+		}
+		prev, seen := out[k]
+		switch {
+		case !seen:
+			out[k] = v
+		case lists[k]:
+			out[k] = append(append([]any{}, prev.([]any)...), v)
+		default:
+			out[k] = []any{prev, v}
+			lists[k] = true
+		}
+	}
+	return out, nil
+}
+
+func unwrapFileValues(in map[string]any) map[string]any {
+	out := make(map[string]any, len(in))
+	for k, v := range in {
+		switch t := v.(type) {
+		case fileText:
+			out[k] = string(t)
+		case []any:
+			items := make([]any, len(t))
+			for i, it := range t {
+				if ft, ok := it.(fileText); ok {
+					it = string(ft)
+				}
+				items[i] = it
+			}
+			out[k] = items
+		default:
+			out[k] = v
+		}
+	}
+	return out
+}
+
+func parseValue(raw string, readFile func(string) ([]byte, error)) (any, error) {
+	if rest, ok := strings.CutPrefix(raw, "@@"); ok {
+		return "@" + rest, nil
+	}
+	if path, ok := strings.CutPrefix(raw, "@"); ok {
+		b, err := readFile(path)
+		if err != nil {
+			return nil, &output.Error{Code: output.CodeUsage, Message: fmt.Sprintf("cannot read %s: %v", path, err)}
+		}
+		return fileText(b), nil
+	}
+	return raw, nil
+}
+
+// MergeInput returns a new map where over wins key by key.
+func MergeInput(base, over map[string]any) map[string]any {
+	out := make(map[string]any, len(base)+len(over))
+	for k, v := range base {
+		out[k] = v
+	}
+	for k, v := range over {
+		out[k] = v
+	}
+	return out
+}

@@ -1,1 +1,7 @@
 .env
+.env.*
+!.env.example
+.superpowers/
+bin/
+fal-output/
+testdata/live/.raw/

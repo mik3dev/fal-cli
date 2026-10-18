@@ -357,11 +357,11 @@ func TestRunValidationErrorExit2(t *testing.T) {
 	f := newFal(t)
 	png := filepath.Join(t.TempDir(), "x.png")
 	_ = os.WriteFile(png, []byte("P"), 0o600)
-	code, m, _, _ := runFal(t, f, filepath.Join(t.TempDir(), "h"), "run", "fal-ai/flux/schnell", "-p", "prompt=fox", "-p", "num_images=99", "-p", "image_urls="+png, "--no-validate", "--dry-run")
+	code, _, _, _ := runFal(t, f, filepath.Join(t.TempDir(), "h"), "run", "fal-ai/flux/schnell", "-p", "prompt=fox", "-p", "num_images=99", "-p", "image_urls="+png, "--no-validate", "--dry-run")
 	if code != 0 || f.uploads != 0 {
 		t.Fatalf("no-validate dry-run: code=%d uploads=%d", code, f.uploads)
 	}
-	code, m, _, _ = runFal(t, f, filepath.Join(t.TempDir(), "h"), "run", "fal-ai/flux/schnell", "-p", "prompt=fox", "-p", "num_images=99")
+	code, m, _, _ := runFal(t, f, filepath.Join(t.TempDir(), "h"), "run", "fal-ai/flux/schnell", "-p", "prompt=fox", "-p", "num_images=99")
 	e, _ := m["error"].(map[string]any)
 	details, _ := e["details"].(map[string]any)
 	probs, _ := details["problems"].([]any)

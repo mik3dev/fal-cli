@@ -36,7 +36,7 @@ func usageErr(format string, args ...any) *output.Error {
 
 func newRunCmd(deps Deps) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "run <endpoint>",
+		Use:   "run <endpoint|@preset>",
 		Short: "Submit a generation request, wait for it and download the results",
 		Args:  cobra.ExactArgs(1),
 		RunE:  func(cmd *cobra.Command, args []string) error { return runModel(cmd, deps, args[0]) },
@@ -65,6 +65,14 @@ func runModel(cmd *cobra.Command, deps Deps, endpoint string) error {
 	if timeout < 0 {
 		return usageErr("--timeout must be positive, got %s", timeout)
 	}
+	var ref presetRef
+	if strings.HasPrefix(endpoint, "@") {
+		p, err := lookupPreset(deps, endpoint)
+		if err != nil {
+			return err
+		}
+		endpoint, ref = p.Model, presetRef{name: p.Name, params: p.Params}
+	}
 	c, paths, cfg, err := newAPIClientCfg(cmd, deps)
 	if err != nil {
 		return err
@@ -74,7 +82,7 @@ func runModel(cmd *cobra.Command, deps Deps, endpoint string) error {
 	if err != nil {
 		return err
 	}
-	prep, err := prepareInput(cmd, deps, doc, endpoint, warn)
+	prep, err := prepareInput(cmd, deps, doc, endpoint, ref, warn)
 	if err != nil {
 		return err
 	}
@@ -99,15 +107,15 @@ func runModel(cmd *cobra.Command, deps Deps, endpoint string) error {
 	}
 	if noWait, _ := flags.GetBool("no-wait"); noWait {
 		_, _ = fmt.Fprintf(warn, "note: %s with: fal-cli task wait %s\n", expiryWarning, id)
-		return output.Success(deps.Stdout, map[string]any{
+		return output.Success(deps.Stdout, withPreset(map[string]any{
 			"requestId": id, "model": endpoint, "state": task.LedgerSubmitted,
 			"ids": map[string]any{"request_id": id}, "uploaded": nonNil(uploaded),
-		})
+		}, ref.name))
 	}
 	if timeout == 0 {
 		timeout = timeoutFor(doc.Category)
 	}
-	return finish(cmd, deps, c, paths, finishArgs{id: id, endpoint: endpoint, outDir: outDir, timeout: timeout, createdAt: now, uploaded: uploaded})
+	return finish(cmd, deps, c, paths, finishArgs{id: id, endpoint: endpoint, outDir: outDir, timeout: timeout, createdAt: now, uploaded: uploaded, preset: ref.name})
 }
 
 const maxGotRunes = 100
@@ -117,17 +125,26 @@ type preparedInput struct {
 	input    map[string]any
 	isFile   func(string) bool
 	problems []schema.Problem // only set under --no-validate
+	preset   string           // preset name when invoked via @name
+}
+
+// withPreset returns out with "preset" set when the run came from a preset.
+func withPreset(out map[string]any, name string) map[string]any {
+	if name != "" {
+		out["preset"] = name
+	}
+	return out
 }
 
 // prepareInput builds, coerces and validates the input without any network
 // access. Invalid input is a validation error unless --no-validate is set.
-func prepareInput(cmd *cobra.Command, deps Deps, doc schema.Doc, endpoint string, warn io.Writer) (preparedInput, error) {
+func prepareInput(cmd *cobra.Command, deps Deps, doc schema.Doc, endpoint string, ref presetRef, warn io.Writer) (preparedInput, error) {
 	sch := doc.Input
-	raw, err := buildInput(cmd, deps, sch)
+	raw, err := buildInput(cmd, deps, sch, ref.params)
 	if err != nil {
 		return preparedInput{}, err
 	}
-	p := preparedInput{input: schema.Coerce(sch, raw), isFile: func(k string) bool { return upload.SchemaFileKey(sch, k) }}
+	p := preparedInput{input: schema.Coerce(sch, raw), isFile: func(k string) bool { return upload.SchemaFileKey(sch, k) }, preset: ref.name}
 	problems, err := schema.Validate(sch, p.input)
 	if err != nil {
 		_, _ = fmt.Fprintf(warn, "warning: cannot validate the input (%v); sending without validation\n", err)
@@ -172,11 +189,11 @@ func capGot(problems []schema.Problem) []schema.Problem {
 	return out
 }
 
-// buildInput merges --input and the -p values (later wins). Plain -p values
+// buildInput merges the preset params, --input and the -p values (later wins). Plain -p values
 // for keys the schema does not declare are typed by guess (numbers, booleans,
 // JSON); declared keys are left for schema.Coerce; @file contents and
 // --input values stay as they are.
-func buildInput(cmd *cobra.Command, deps Deps, sch map[string]any) (map[string]any, error) {
+func buildInput(cmd *cobra.Command, deps Deps, sch, presetParams map[string]any) (map[string]any, error) {
 	flags := cmd.Flags()
 	var base map[string]any
 	if path, _ := flags.GetString("input"); path != "" {
@@ -209,7 +226,7 @@ func buildInput(cmd *cobra.Command, deps Deps, sch map[string]any) (map[string]a
 		}
 	}
 	over := unwrapFileValues(MergeInput(tagged, schema.GuessLiterals(undeclared)))
-	return MergeInput(base, over), nil
+	return MergeInput(MergeInput(presetParams, base), over), nil
 }
 
 func fileExists(p string) bool {
@@ -252,7 +269,7 @@ func pendingPaths(ps []pendingUpload) []string {
 
 // emitDryRun prints the request that would be sent; nothing is uploaded or submitted.
 func emitDryRun(cmd *cobra.Command, deps Deps, c *api.Client, paths config.Paths, endpoint string, p preparedInput, warn io.Writer) error {
-	out := map[string]any{"dryRun": true, "model": endpoint, "input": p.input, "pendingUploads": pendingPaths(pendingUploads(p.input, p.isFile)), "price": nil}
+	out := withPreset(map[string]any{"dryRun": true, "model": endpoint, "input": p.input, "pendingUploads": pendingPaths(pendingUploads(p.input, p.isFile)), "price": nil}, p.preset)
 	if len(p.problems) > 0 {
 		out["problems"] = p.problems
 	}
@@ -298,6 +315,7 @@ type finishArgs struct {
 	timeout              time.Duration
 	createdAt            time.Time
 	uploaded             []string
+	preset               string // preset name when invoked via @name
 }
 
 // finish waits for the request, records the final state, downloads and emits.
@@ -329,11 +347,11 @@ func finish(cmd *cobra.Command, deps Deps, c *api.Client, paths config.Paths, a 
 		}
 	}
 	recordFinal(paths, a, task.LedgerSuccess, "", warn)
-	return output.Success(deps.Stdout, map[string]any{
+	return output.Success(deps.Stdout, withPreset(map[string]any{
 		"requestId": a.id, "model": a.endpoint, "state": task.LedgerSuccess,
 		"files": files, "ids": result.IDs(a.id, raw, media), "result": raw,
 		"inferenceTime": st.InferenceTime, "uploaded": nonNil(a.uploaded),
-	})
+	}, a.preset))
 }
 
 // finalState maps a wait/result error to the ledger state. Transient errors

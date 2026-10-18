@@ -1,0 +1,57 @@
+presets:
+  - name: imagen-rapida
+    description: Fast, cheap text-to-image with FLUX schnell (about 0.003 USD per megapixel, about 0.003 per 1024x1024 image). Use for quick drafts. Missing fields - prompt.
+    model: fal-ai/flux/schnell
+    params:
+      image_size: square_hd
+      output_format: jpeg
+  - name: imagen-calidad
+    description: High quality text-to-image with Nano Banana Pro (0.15 USD per image). Use for final renders. Missing fields - prompt.
+    model: fal-ai/nano-banana-pro
+    params:
+      aspect_ratio: "1:1"
+      resolution: "1K"
+      output_format: png
+  - name: imagen-edicion
+    description: Edit or combine existing images from a prompt with Nano Banana 2 (0.08 USD per image). Missing fields - prompt, image_urls (repeat -p per image; local files are uploaded).
+    model: fal-ai/nano-banana-2/edit
+    params:
+      output_format: png
+  - name: video-calidad
+    description: High quality text-to-video with Kling 2.5 turbo pro, 5 seconds (0.07 USD per second, about 0.35 per clip). Missing fields - prompt.
+    model: fal-ai/kling-video/v2.5-turbo/pro/text-to-video
+    params:
+      duration: "5"
+      aspect_ratio: "16:9"
+  - name: video-imagen
+    description: Animate a still image into a 5 second video with Kling 2.5 turbo pro (0.07 USD per second, about 0.35 per clip). Missing fields - prompt, image_url.
+    model: fal-ai/kling-video/v2.5-turbo/pro/image-to-video
+    params:
+      duration: "5"
+  - name: video-inicio-fin
+    description: Video that interpolates between a first and a last frame with Kling 2.5 turbo pro, 5 seconds (0.07 USD per second). Missing fields - prompt, image_url (first frame), tail_image_url (last frame).
+    model: fal-ai/kling-video/v2.5-turbo/pro/image-to-video
+    params:
+      duration: "5"
+  - name: video-barato
+    description: Cheapest text-to-video with MiniMax H3 Max turbo, 480P and 5 seconds (0.016 USD per second, about 0.08 per clip). Use for tests. Missing fields - prompt.
+    model: minimax/h3-max-turbo/text-to-video
+    params:
+      resolution: 480P
+      duration: 5
+      prompt_expansion_mode: balanced
+  - name: musica
+    description: Song with vocals from a style description with MiniMax Music 2.6 (0.15 USD per track). Missing fields - prompt (style); optional lyrics (plain text with [verse]/[chorus] tags).
+    model: fal-ai/minimax-music/v2.6
+    params:
+      is_instrumental: false
+  - name: instrumental
+    description: Instrumental track without vocals with MiniMax Music 2.6 (0.15 USD per track). Missing fields - prompt (style).
+    model: fal-ai/minimax-music/v2.6
+    params:
+      is_instrumental: true
+  - name: voz
+    description: Multilingual text-to-speech narration with ElevenLabs multilingual v2 (0.10 USD per 1000 characters). Missing fields - text. Override voice with -p voice=<name or voice id>.
+    model: fal-ai/elevenlabs/tts/multilingual-v2
+    params:
+      voice: Rachel

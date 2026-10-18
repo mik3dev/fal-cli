@@ -1,0 +1,12 @@
+{
+  "expanded_prompt": "integrated_multimodal_description: [Shot 1] Cinematic, wide-angle drone shot sweeping over a dense, misty coniferous forest at sunrise. The scene is enveloped in a thick, ethereal white mist that clings to the valley floor, partially obscuring the towering dark spruce and fir trees. As the sun breaks over the horizon, sharp beams of golden light pierce through the fog, creating dramatic god-rays and long shadows. The camera moves forward with large amplitude at slow speed, gliding gracefully over the canopy, revealing the textured tops of the needles and the dewd-covered moisture clinging to the branches. The color palette transitions from cool, deep blues and greys to a vibrant, warm amber and gold where the sunlight hits the rising vapor.\n\noverall_soundscape: A soft, ambient wash of morning wind whistling through dense pine needles. Distant, melodic calls of forest birds echo through the vast valley, punctuated by the faint, rhythmic rustle of branches moving in the light breeze.\n\nnon_diegetic_music: A peaceful, swelling orchestral pad with slow violin notes and a light, airy piano melody that evokes a sense of awe and natural tranquility.",
+  "timings": {
+    "inference": 0.8441555928438902
+  },
+  "video": {
+    "content_type": "video/mp4",
+    "file_name": "be6A_IowxfIbt61HriOxz_minimax-h3.mp4",
+    "file_size": 3207003,
+    "url": "https://v3b.fal.media/files/b/0aaed67d/be6A_IowxfIbt61HriOxz_minimax-h3.mp4"
+  }
+}

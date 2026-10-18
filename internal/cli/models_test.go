@@ -129,3 +129,34 @@ func TestModelsPriceCommand(t *testing.T) {
 		t.Fatalf("code=%d m=%v", code, m)
 	}
 }
+
+func TestSchemaCommandSummary(t *testing.T) {
+	var hits atomic.Int32
+	code, m, _ := run(t, apiEnv(fakeFal(t, &hits)), "models", "schema", "fal-ai/flux/schnell")
+	if code != 0 || m["model"] != "fal-ai/flux/schnell" || m["category"] != "text-to-image" {
+		t.Fatalf("code=%d m=%v", code, m)
+	}
+	req, _ := m["required"].([]any)
+	fields, _ := m["fields"].([]any)
+	outf, _ := m["output"].([]any)
+	if len(req) != 1 || len(fields) != 10 || len(outf) == 0 {
+		t.Fatalf("m = %v", m)
+	}
+}
+
+func TestSchemaCommandRaw(t *testing.T) {
+	var hits atomic.Int32
+	code, m, _ := run(t, apiEnv(fakeFal(t, &hits)), "models", "schema", "fal-ai/flux/schnell", "--raw")
+	oa, _ := m["openapi"].(map[string]any)
+	if code != 0 || oa["openapi"] != "3.0.4" {
+		t.Fatalf("code=%d m=%v", code, m)
+	}
+}
+
+func TestSchemaCommandUnknownModel(t *testing.T) {
+	var hits atomic.Int32
+	code, m, _ := run(t, apiEnv(fakeFal(t, &hits)), "models", "schema", "fal-ai/nope")
+	if code != 2 || m["error"].(map[string]any)["code"] != "validation" {
+		t.Fatalf("code=%d m=%v", code, m)
+	}
+}

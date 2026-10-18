@@ -52,7 +52,7 @@ func newCatalog(cmd *cobra.Command, deps Deps) (*catalog.Service, error) {
 
 func newModelsCmd(deps Deps) *cobra.Command {
 	models := &cobra.Command{Use: "models", Short: "Browse the fal.ai model catalog", RunE: groupRunE}
-	models.AddCommand(newModelsListCmd(deps), newModelsSearchCmd(deps), newModelsPriceCmd(deps))
+	models.AddCommand(newModelsListCmd(deps), newModelsSearchCmd(deps), newModelsPriceCmd(deps), newModelsSchemaCmd(deps))
 	return models
 }
 

@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -205,27 +206,6 @@ func hash(s string) string {
 	return hex.EncodeToString(h[:8])
 }
 
-// Find looks one endpoint up. A platform 404 means unknown (ok=false, nil error).
-// An endpoint without metadata is still found, with only EndpointID set.
-func (s *Service) Find(ctx context.Context, endpoint string) (Model, bool, error) {
-	var raw rawPage
-	v := url.Values{"endpoint_id": {endpoint}}
-	_, err := s.Client.Do(ctx, api.Request{Method: http.MethodGet, Path: "/v1/models", Query: v, Host: api.HostPlatform}, &raw)
-	if err != nil {
-		var ae *api.Error
-		if asAPI(err, &ae) && ae.IsNotFound() {
-			return Model{}, false, nil
-		}
-		return Model{}, false, err
-	}
-	for _, m := range raw.models() {
-		if m.EndpointID == endpoint {
-			return m, true, nil
-		}
-	}
-	return Model{}, false, nil
-}
-
 // Price returns the unit price of an endpoint (cached 24h).
 func (s *Service) Price(ctx context.Context, endpoint string) (Price, error) {
 	name := "price/" + endpoint
@@ -242,7 +222,7 @@ func (s *Service) Price(ctx context.Context, endpoint string) (Price, error) {
 	v := url.Values{"endpoint_id": {endpoint}}
 	if _, err := s.Client.Do(ctx, api.Request{Method: http.MethodGet, Path: "/v1/models/pricing", Query: v, Host: api.HostPlatform}, &res); err != nil {
 		var ae *api.Error
-		if asAPI(err, &ae) && ae.IsNotFound() {
+		if errors.As(err, &ae) && ae.IsNotFound() {
 			return Price{}, unknownModel(endpoint)
 		}
 		return Price{}, err
@@ -271,7 +251,7 @@ func Credits(ctx context.Context, c *api.Client) (balance float64, currency stri
 	v := url.Values{"expand": {"credits"}}
 	if _, err := c.Do(ctx, api.Request{Method: http.MethodGet, Path: "/v1/account/billing", Query: v, Host: api.HostPlatform}, &res); err != nil {
 		var ae *api.Error
-		if asAPI(err, &ae) && ae.Status == http.StatusForbidden {
+		if errors.As(err, &ae) && ae.Status == http.StatusForbidden {
 			return 0, "", &output.Error{Code: output.CodeAuth, Message: "the API key lacks the BILLING permission; create one with API+BILLING at https://fal.ai/dashboard/keys", Details: map[string]any{"status": 403}}
 		}
 		return 0, "", err
@@ -280,14 +260,6 @@ func Credits(ctx context.Context, c *api.Client) (balance float64, currency stri
 		return 0, "", &api.Error{Status: 200, Message: "response lacks credits"}
 	}
 	return res.Credits.CurrentBalance, res.Credits.Currency, nil
-}
-
-func asAPI(err error, target **api.Error) bool {
-	e, ok := err.(*api.Error)
-	if ok {
-		*target = e
-	}
-	return ok
 }
 
 // MarshalJSON keeps nextCursor null when empty, for the CLI contract.

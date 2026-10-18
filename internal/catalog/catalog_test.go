@@ -202,24 +202,6 @@ func TestSearchPassesQ(t *testing.T) {
 	}
 }
 
-func TestFindUnknownIsFalse(t *testing.T) {
-	var hits atomic.Int32
-	s := newService(t, platform(t, &hits, nil).URL)
-	m, ok, err := s.Find(context.Background(), "fal-ai/does-not-exist")
-	if err != nil || ok || m.EndpointID != "" {
-		t.Fatalf("m=%+v ok=%v err=%v", m, ok, err)
-	}
-}
-
-func TestFindWithoutMetadata(t *testing.T) {
-	var hits atomic.Int32
-	s := newService(t, platform(t, &hits, nil).URL)
-	m, ok, err := s.Find(context.Background(), "fal-ai/veo3.1/fast")
-	if err != nil || !ok || m.EndpointID != "fal-ai/veo3.1/fast" || m.Category != "" {
-		t.Fatalf("m=%+v ok=%v err=%v", m, ok, err)
-	}
-}
-
 func TestPriceFromFixture(t *testing.T) {
 	var hits atomic.Int32
 	s := newService(t, platform(t, &hits, nil).URL)

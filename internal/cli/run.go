@@ -319,14 +319,16 @@ func finish(cmd *cobra.Command, deps Deps, c *api.Client, paths config.Paths, a 
 		}
 		return withRequestID(err, a.id, nil)
 	}
-	recordFinal(paths, a, task.LedgerSuccess, "", warn)
 	media := result.Extract(raw)
 	files := []download.File{}
 	if noDl, _ := cmd.Flags().GetBool("no-download"); !noDl && len(media) > 0 {
 		if files, err = download.All(cmd.Context(), c.HTTP, media, a.outDir, a.endpoint, a.id); err != nil {
+			// The request succeeded on fal: ledger success, note what is still on the CDN.
+			recordFinal(paths, a, task.LedgerSuccess, "files not downloaded: "+err.Error(), warn)
 			return withRequestID(err, a.id, map[string]any{"media": media})
 		}
 	}
+	recordFinal(paths, a, task.LedgerSuccess, "", warn)
 	return output.Success(deps.Stdout, map[string]any{
 		"requestId": a.id, "model": a.endpoint, "state": task.LedgerSuccess,
 		"files": files, "ids": result.IDs(a.id, raw, media), "result": raw,

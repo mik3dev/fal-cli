@@ -110,3 +110,23 @@ func TestTaskCancelLedgerWriteFailureWarns(t *testing.T) {
 		t.Fatalf("stderr = %q", errw.String())
 	}
 }
+
+func TestTaskGetCompletedWithErrorSkipsResult(t *testing.T) {
+	var resultCalls atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, "/status") {
+			_, _ = w.Write([]byte(`{"status":"COMPLETED","error":"nsfw","error_type":"content_policy_violation"}`))
+			return
+		}
+		resultCalls.Add(1)
+		_, _ = w.Write([]byte(`{"images":[]}`))
+	}))
+	t.Cleanup(srv.Close)
+	code, m, _ := run(t, apiEnv(srv), "task", "get", "req-1", "--model", "fal-ai/flux/schnell")
+	if code != 0 || m["state"] != "COMPLETED" || m["error"] != "nsfw" || m["errorType"] != "content_policy_violation" {
+		t.Fatalf("code=%d m=%v", code, m)
+	}
+	if _, has := m["result"]; has || resultCalls.Load() != 0 {
+		t.Fatalf("result fetched: calls=%d m=%v", resultCalls.Load(), m)
+	}
+}

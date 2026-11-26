@@ -146,3 +146,7 @@ set -a; . ./.env; set +a; FAL_E2E=1 FAL_E2E_BUDGET=2 go test -tags live -run Tes
 ```
 
 Releasing: push a tag `vX.Y.Z`. The release workflow runs goreleaser and publishes the archives and `checksums.txt` to GitHub Releases.
+
+## Licencia
+
+MIT. Ver [LICENSE](LICENSE).

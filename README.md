@@ -1,12 +1,15 @@
 # fal-cli
 
+[![CI](https://github.com/mik3dev/fal-cli/actions/workflows/ci.yml/badge.svg)](https://github.com/mik3dev/fal-cli/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/mik3dev/fal-cli)](https://github.com/mik3dev/fal-cli/releases/latest)
+[![Go Report Card](https://goreportcard.com/badge/github.com/mik3dev/fal-cli)](https://goreportcard.com/report/github.com/mik3dev/fal-cli)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+
 A CLI built for AI agents to generate images, video and audio through the [fal.ai](https://fal.ai) API. The models come from the live catalog (about 1200 endpoints). Every command prints exactly one JSON object on stdout; progress and warnings go to stderr. It ships an agent skill (`fal-generate`) that teaches agents how to drive it.
 
 ## Install
 
-The repository is private, so every method needs access to `github.com/mik3dev/fal-cli`.
-
-**(a) Release archive** (needs the [GitHub CLI](https://cli.github.com), logged in):
+**(a) Release archive:** download the archive for your platform from [Releases](https://github.com/mik3dev/fal-cli/releases/latest), or with the [GitHub CLI](https://cli.github.com):
 
 ```sh
 gh release download --pattern '*darwin_arm64*' --repo mik3dev/fal-cli
@@ -21,11 +24,8 @@ Archives are named `fal-cli_<version>_<os>_<arch>` (`tar.gz`, `zip` on Windows) 
 **(b) Go toolchain:**
 
 ```sh
-GOPRIVATE=github.com/mik3dev/* go install github.com/mik3dev/fal-cli/cmd/fal-cli@latest
-# PowerShell: $env:GOPRIVATE="github.com/mik3dev/*"; go install github.com/mik3dev/fal-cli/cmd/fal-cli@latest
+go install github.com/mik3dev/fal-cli/cmd/fal-cli@latest
 ```
-
-A private repo also needs git credentials: run `gh auth setup-git`, or use an SSH rewrite (`git config --global url."git@github.com:".insteadOf "https://github.com/"`).
 
 **(c) From a clone:**
 
@@ -147,6 +147,6 @@ set -a; . ./.env; set +a; FAL_E2E=1 FAL_E2E_BUDGET=2 go test -tags live -run Tes
 
 Releasing: push a tag `vX.Y.Z`. The release workflow runs goreleaser and publishes the archives and `checksums.txt` to GitHub Releases.
 
-## Licencia
+## License
 
-MIT. Ver [LICENSE](LICENSE).
+MIT. See [LICENSE](LICENSE).

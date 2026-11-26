@@ -1,6 +1,6 @@
 module github.com/mik3dev/fal-cli
 
-go 1.27.1
+go 1.27.4
 
 require (
 	github.com/santhosh-tekuri/jsonschema/v6 v6.0.2
